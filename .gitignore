@@ -28,4 +28,7 @@ PROJECT_SPEC.md
 TECHNICAL_ARCHITECTURE.md
 MVP2_ARCHITECTURE.md
 
+# Scripts with sensitive information
+connect-droplet.sh
+
 
