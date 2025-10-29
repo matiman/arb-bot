@@ -1,0 +1,21 @@
+services:
+  arb-bot:
+    # TODO: Replace with your Docker Hub image name
+    image: mattymatiman/arb-bot  # specify name of image on Docker Hub
+    restart: "always"  # automatically restart container when server crashes
+    # TODO: Uncomment environment section when you add environment variables
+    # environment: # set up environment variables
+    #   # TODO: Add/modify environment variables as needed
+    #   # TODO: Replace with your actual environment variable names
+    #   # JWT_SECRET: ${JWT_SECRET}  # Required - no default value
+    #   # ARB_BOT_API_KEY: ${ARB_BOT_API_KEY}  # Required
+    #   # ARB_BOT_IP: ${ARB_BOT_IP:-localhost}  # Optional - uses localhost as default
+    #   # LOG_LEVEL: ${LOG_LEVEL:-info}  # Optional - uses info as default
+    # TODO: Uncomment and set ports when your app needs them
+    ports:
+    - "7878:7878"  # expose port 7878 so that applications outside the container can connect to it
+    # TODO: Add depends_on if your service depends on others
+    # depends_on:
+    #   other-service:
+    #     condition: service_started
+

@@ -1,0 +1,31 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+
+# Test artifacts
+/test-results/
+/coverage/
+
+# Project documentation (not for git)
+PROJECT_SPEC.md
+TECHNICAL_ARCHITECTURE.md
+MVP2_ARCHITECTURE.md
+
+
