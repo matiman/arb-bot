@@ -32,7 +32,7 @@ MVP2_ARCHITECTURE.md
 last_completed_task.txt
 task_chat_history.txt
 
-docs/*
+docs/ai_prompts/**
 
 
 
