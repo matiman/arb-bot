@@ -27,6 +27,7 @@ Thumbs.db
 PROJECT_SPEC.md
 TECHNICAL_ARCHITECTURE.md
 MVP2_ARCHITECTURE.md
+/docs/
 
 # Scripts with sensitive information
 connect-droplet.sh

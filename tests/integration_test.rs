@@ -6,7 +6,7 @@ mod tests {
     fn test_hello_world_output() {
         // Build the binary
         let build_output = Command::new("cargo")
-            .args(&["build", "--release"])
+            .args(["build", "--release"]) // remove needless borrow
             .output()
             .expect("Failed to build the project");
 
@@ -41,7 +41,7 @@ mod tests {
     fn test_hello_world_basic() {
         // For development builds, test with cargo run
         let output = Command::new("cargo")
-            .args(&["run", "--quiet"])
+            .args(["run", "--quiet"]) // remove needless borrow
             .output()
             .expect("Failed to run the project");
 

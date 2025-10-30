@@ -3,6 +3,8 @@
 //! This library provides the core functionality for the arbitrage bot,
 //! including exchange integrations, price monitoring, and trading logic.
 
+pub mod error;
+
 /// Main module for arbitrage bot functionality
 pub mod arb_bot {
     /// Initialize the arbitrage bot
