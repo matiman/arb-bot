@@ -1,0 +1,7 @@
+[trading]
+pair = "SOL/USDC"
+spread_threshold = 0.002
+order_size = 10.0
+cooldown_ms = 5000
+
+

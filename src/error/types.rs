@@ -52,6 +52,11 @@ pub enum ArbitrageError {
     Json(#[from] serde_json::Error),
 
     WebSocketLib(#[from] tokio_tungstenite::tungstenite::Error),
+
+    Toml(#[from] toml::de::Error),
+
+    //Keep the size of the error small by boxing the error
+    ConfigParse(Box<crate::config::parse::ConfigError>),
 }
 
 impl ArbitrageError {
@@ -80,14 +85,27 @@ impl ArbitrageError {
 impl std::fmt::Display for ArbitrageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ArbitrageError::ExchangeError { exchange, message, code } => {
+            ArbitrageError::ExchangeError {
+                exchange,
+                message,
+                code,
+            } => {
                 let code_s = Self::format_optional_code(code);
                 write!(f, "Exchange error on {exchange}: {message} - {code_s}")
             }
-            ArbitrageError::WebSocketError { endpoint, reconnect_possible } => {
-                write!(f, "WebSocket error from {endpoint} (reconnect_possible={reconnect_possible})")
+            ArbitrageError::WebSocketError {
+                endpoint,
+                reconnect_possible,
+            } => {
+                write!(
+                    f,
+                    "WebSocket error from {endpoint} (reconnect_possible={reconnect_possible})"
+                )
             }
-            ArbitrageError::NetworkError { message, retry_after } => {
+            ArbitrageError::NetworkError {
+                message,
+                retry_after,
+            } => {
                 let retry = Self::format_optional_retry(retry_after);
                 write!(f, "Network error: {message} - {retry}")
             }
@@ -98,18 +116,37 @@ impl std::fmt::Display for ArbitrageError {
             ArbitrageError::ConfigError { field, reason } => {
                 write!(f, "Config error: field '{field}' - {reason}")
             }
-            ArbitrageError::RateLimitExceeded { exchange, retry_after } => {
-                write!(f, "Rate limit exceeded on {exchange}, retry after {retry_after}ms")
+            ArbitrageError::RateLimitExceeded {
+                exchange,
+                retry_after,
+            } => {
+                write!(
+                    f,
+                    "Rate limit exceeded on {exchange}, retry after {retry_after}ms"
+                )
             }
             ArbitrageError::AuthenticationError { exchange, reason } => {
                 write!(f, "Authentication error on {exchange}: {reason}")
             }
-            ArbitrageError::InsufficientBalance { exchange, asset, required, available } => {
-                write!(f, "Insufficient balance on {exchange} for {asset}: required {required}, available {available}")
+            ArbitrageError::InsufficientBalance {
+                exchange,
+                asset,
+                required,
+                available,
+            } => {
+                write!(
+                    f,
+                    "Insufficient balance on {exchange} for {asset}: required {required}, available {available}"
+                )
             }
             ArbitrageError::Io(e) => write!(f, "IO error: {e}"),
             ArbitrageError::Json(e) => write!(f, "JSON error: {e}"),
             ArbitrageError::WebSocketLib(e) => write!(f, "WebSocket library error: {e}"),
+            ArbitrageError::Toml(e) => write!(f, "TOML parse error: {e}"),
+            ArbitrageError::ConfigParse(e) => {
+                // ConfigError already has #[error(...)] attributes via thiserror
+                write!(f, "{}", *e)
+            }
         }
     }
 }
@@ -120,7 +157,11 @@ mod tests {
 
     #[test]
     fn display_exchange_with_code() {
-        let e = ArbitrageError::ExchangeError { exchange: "X".into(), message: "m".into(), code: Some(1) };
+        let e = ArbitrageError::ExchangeError {
+            exchange: "X".into(),
+            message: "m".into(),
+            code: Some(1),
+        };
         let s = e.to_string();
         assert!(s.contains("code 1"));
     }

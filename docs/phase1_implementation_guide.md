@@ -385,6 +385,8 @@ pub fn connect_to_exchange(url: &str) -> Result<Connection> {
 
 ## 🎯 Task 2: Configuration System with Parse Pattern
 
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
+
 ### Objective
 
 Create a type-safe, validated configuration system using the Parse pattern to ensure configs are always valid.
@@ -636,11 +638,13 @@ ARB_TRADING_SPREAD_THRESHOLD=0.003
 ARB_RISK_EMERGENCY_STOP=true
 ```
 
-### Note: Revisit HIGH PRIORITY Core Principles before imlementing
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ---
 
 ## 🎯 Task 3: Exchange Trait Abstraction
+
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ### Objective
 
@@ -934,11 +938,13 @@ Create a trait-based abstraction for exchange interactions, enabling polymorphis
 4. **src/exchanges/factory.rs** - Factory pattern with unit tests
 5. **tests/exchange_trait.rs** - Integration tests
 
-### Note: Revisit HIGH PRIORITY Core Principles before imlementing
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ---
 
 ## 🎯 Task 4: WebSocket Price Feed Manager
+
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ### Objective
 
@@ -1190,11 +1196,13 @@ Create a generic WebSocket manager that handles connections, reconnections, and 
 4. **src/websocket/parser.rs** - MessageParser trait with example implementations and unit tests
 5. **tests/websocket_manager.rs** - Integration tests
 
-### Note: Revisit HIGH PRIORITY Core Principles before imlementing
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ---
 
 ## 🎯 Task 5: Shared Price State Manager
+
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ### Objective
 
@@ -1433,11 +1441,13 @@ Create thread-safe shared state for storing latest prices from multiple exchange
 3. **src/state/types.rs** - ExchangeId, PriceData with unit tests
 4. **tests/price_state.rs** - Integration tests (concurrent scenarios)
 
-### Note: Revisit HIGH PRIORITY Core Principles before imlementing
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ---
 
 ## 🎯 Task 6: Binance WebSocket Integration
+
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ### Objective
 
@@ -1857,7 +1867,7 @@ Implement concrete Binance WebSocket client using the Exchange trait.
 5. **src/exchanges/binance/parser.rs** - Message parser with unit tests
 6. **tests/binance.rs** - Integration tests
 
-### Note: Revisit HIGH PRIORITY Core Principles before imlementing
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ---
 
@@ -2261,11 +2271,13 @@ Implement Coinbase Advanced Trade API integration using the Exchange trait.
 6. **src/exchanges/coinbase/auth.rs** - JWT authentication with unit tests
 7. **tests/coinbase.rs** - Integration tests
 
-### Note: Revisit HIGH PRIORITY Core Principles before imlementing
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ---
 
 ## 🎯 Task 8: Logging & Observability
+
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ### Objective
 
@@ -2507,6 +2519,8 @@ Set up structured logging with tracing for debugging and monitoring.
 2. **src/logger/config.rs** - LoggerConfig with parse pattern and unit tests
 3. **src/logger/format.rs** - Format helpers with unit tests
 4. **tests/logging.rs** - Integration tests
+
+### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
 ---
 

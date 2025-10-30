@@ -4,6 +4,7 @@
 //! including exchange integrations, price monitoring, and trading logic.
 
 pub mod error;
+pub mod config;
 
 /// Main module for arbitrage bot functionality
 pub mod arb_bot {
