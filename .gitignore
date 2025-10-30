@@ -32,10 +32,9 @@ MVP2_ARCHITECTURE.md
 last_completed_task.txt
 task_chat_history.txt
 
-docs/ai_prompts/last_completed_task.txt
-docs/ai_prompts/task_chat_history.txt
+docs/*
 
-# Access check: minor ignore update to verify push
+
 
 
 
