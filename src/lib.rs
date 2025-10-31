@@ -3,8 +3,9 @@
 //! This library provides the core functionality for the arbitrage bot,
 //! including exchange integrations, price monitoring, and trading logic.
 
-pub mod error;
 pub mod config;
+pub mod error;
+pub mod exchanges;
 
 /// Main module for arbitrage bot functionality
 pub mod arb_bot {
@@ -16,15 +17,6 @@ pub mod arb_bot {
     /// Run the main bot loop
     pub fn run() {
         println!("Arb Bot running...");
-    }
-}
-
-/// Exchange integration module
-pub mod exchanges {
-    /// Exchange trait for common operations
-    pub trait Exchange {
-        fn get_price(&self, symbol: &str) -> Result<f64, String>;
-        fn place_order(&self, symbol: &str, amount: f64) -> Result<String, String>;
     }
 }
 

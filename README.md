@@ -9,9 +9,21 @@ This project implements an arbitrage bot that monitors price differences across 
 ## Features
 
 - Real-time price monitoring
-- Multi-exchange support
+- Multi-exchange support (Binance, Coinbase, etc.)
 - Risk management
 - Automated trading execution
+- Exchange trait abstraction for flexible implementations
+
+## Architecture
+
+The bot uses a trait-based architecture for exchange interactions:
+
+- **Exchange Trait**: Unified interface for all exchanges
+- **Price Monitoring**: Real-time price feeds with spread calculation
+- **Order Execution**: Market order placement with fee tracking
+- **Mock Exchange**: Testing without real API calls
+
+For detailed architecture documentation, see [Exchange Architecture Guide](docs/EXCHANGE_ARCHITECTURE.md).
 
 ## Getting Started
 
@@ -75,10 +87,13 @@ arb-bot/
 ### Running Tests
 
 ```bash
-# Run unit tests
+# Run all tests (unit + integration)
 cargo test
 
-# Run integration tests
+# Run unit tests only
+cargo test --lib
+
+# Run integration tests only
 cargo test --test '*'
 
 # Run all tests with output
