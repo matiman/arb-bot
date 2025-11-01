@@ -1302,7 +1302,8 @@ Create thread-safe shared state for storing latest prices from multiple exchange
       #[derive(Clone)]
       pub struct PriceState {
           prices: Arc<RwLock<HashMap<(ExchangeId, String), PriceData>>>,
-          max_age: Duration,
+          max_age: Duration,  // Max age for staleness detection (e.g., 5 seconds)
+          // Max time difference between prices for comparison = max_age / 2
       }
 
       impl PriceState {
@@ -1344,8 +1345,23 @@ Create thread-safe shared state for storing latest prices from multiple exchange
               let price1 = self.get_price(ex1, pair)?;
               let price2 = self.get_price(ex2, pair)?;
 
-              // Check staleness
+              // Check staleness - reject if either price is too old
               if price1.is_stale(self.max_age) || price2.is_stale(self.max_age) {
+                  return None;
+              }
+
+              // Check max time difference - reject if prices captured too far apart
+              // This ensures we compare prices from similar time windows
+              let time_diff = if price1.timestamp > price2.timestamp {
+                  price1.timestamp.duration_since(price2.timestamp).unwrap()
+              } else {
+                  price2.timestamp.duration_since(price1.timestamp).unwrap()
+              };
+
+              // Max time difference: half of max_age (e.g., 2.5s if max_age is 5s)
+              // This ensures prices are from similar time windows
+              let max_time_diff = self.max_age / 2;
+              if time_diff > max_time_diff {
                   return None;
               }
 
@@ -1405,6 +1421,7 @@ Create thread-safe shared state for storing latest prices from multiple exchange
       - Individual PriceState methods
       - Edge cases (empty state, missing exchange)
       - Staleness detection logic
+      - Max time difference rejection (prices captured too far apart)
       - Spread calculation correctness
       - Concurrent updates and reads
 

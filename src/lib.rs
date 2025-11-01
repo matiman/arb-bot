@@ -6,6 +6,7 @@
 pub mod config;
 pub mod error;
 pub mod exchanges;
+pub mod state;
 pub mod websocket;
 
 /// Main module for arbitrage bot functionality
