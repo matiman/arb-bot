@@ -1,6 +1,5 @@
 //! Mock exchange implementation for testing only.
 //!
-//! This is NOT included in production builds - it lives in the tests/ directory.
 
 use arb_bot::error::{ArbitrageError, Result};
 use arb_bot::exchanges::{Exchange, Order, OrderResult, OrderStatus, Price};
@@ -11,8 +10,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Mock exchange for testing - NOT available in production.
-///
 /// Simulates exchange behavior for integration tests without real API calls.
 pub struct MockExchange {
     name: String,
