@@ -33,7 +33,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 ///     type Output = Price;
 ///     fn parse(&self, msg: &str) -> Result<Self::Output> { todo!() }
 /// }
-///
+// TODO: Move to Main.rs
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     let url = "wss://exchange.com/ws".to_string();
@@ -126,14 +126,20 @@ impl<P: MessageParser> WebSocketManager<P> {
 
     /// Connect and run the message loop
     async fn connect_and_run(&mut self) -> Result<()> {
+        println!("🔌 WebSocketManager: Attempting to connect to {}", self.url);
         // Connect to WebSocket
-        let (ws_stream, _) =
-            connect_async(&self.url)
-                .await
-                .map_err(|e| ArbitrageError::NetworkError {
-                    message: format!("Failed to connect to {}: {}", self.url, e),
-                    retry_after: None,
-                })?;
+        let (ws_stream, response) = connect_async(&self.url).await.map_err(|e| {
+            eprintln!("❌ WebSocketManager: Connection failed: {}", e);
+            ArbitrageError::NetworkError {
+                message: format!("Failed to connect to {}: {}", self.url, e),
+                retry_after: None,
+            }
+        })?;
+
+        println!(
+            "✅ WebSocketManager: Connected! Status: {}",
+            response.status()
+        );
 
         // Split into read and write halves since we need to send and receive messages concurrently
         let (mut write, mut read) = ws_stream.split();

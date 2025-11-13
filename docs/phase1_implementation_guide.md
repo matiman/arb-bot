@@ -1475,7 +1475,7 @@ Implement concrete Binance WebSocket client using the Exchange trait.
 1. Binance-specific Exchange implementation
 2. WebSocket ticker stream subscription
 3. Message parsing for Binance format
-4. REST API for order placement and balance queries
+4. ~~REST API for order placement and balance queries~~ **DEFERRED** - Will be implemented in arbitrage logic phase when order execution is needed
 
 ### Implementation Specification
 
@@ -1493,10 +1493,9 @@ Implement concrete Binance WebSocket client using the Exchange trait.
       - Parse price update messages correctly
       - Handle Binance-specific error codes
       - Respect rate limits
-      - Test REST API authentication
-      - Test order placement (testnet)
-      - Test balance queries
       - Use mock for unit tests, real testnet for integration
+
+      **Note:** REST API tests (authentication, order placement, balance queries) are deferred until arbitrage logic phase when order execution is needed.
 
       Start with these tests before implementing BinanceExchange.
     </description>
@@ -1510,24 +1509,25 @@ Implement concrete Binance WebSocket client using the Exchange trait.
           name: String,
           config: BinanceConfig,
           ws_manager: Option<WebSocketManager<BinanceParser>>,
-          rest_client: BinanceRestClient,
+          // rest_client: BinanceRestClient,  // DEFERRED - Will be added in arbitrage logic phase
           price_rx: Option<broadcast::Receiver<Price>>,
           latest_prices: Arc<RwLock<HashMap<String, Price>>>,
       }
 
       impl BinanceExchange {
           pub fn new(config: BinanceConfig) -> Result<Self> {
-              let rest_client = BinanceRestClient::new(
-                  config.api_key.clone(),
-                  config.api_secret.clone(),
-                  config.testnet,
-              );
+              // REST client initialization deferred until arbitrage logic phase
+              // let rest_client = BinanceRestClient::new(
+              //     config.api_key.clone(),
+              //     config.api_secret.clone(),
+              //     config.testnet,
+              // );
 
               Ok(Self {
                   name: "binance".to_string(),
                   config,
                   ws_manager: None,
-                  rest_client,
+                  // rest_client,  // DEFERRED
                   price_rx: None,
                   latest_prices: Arc::new(RwLock::new(HashMap::new())),
               })
@@ -1603,11 +1603,23 @@ Implement concrete Binance WebSocket client using the Exchange trait.
           }
 
           async fn place_order(&mut self, order: Order) -> Result<OrderResult> {
-              self.rest_client.place_market_order(order).await
+              // REST API not implemented yet - WebSocket price feed only
+              // Will be implemented in arbitrage logic phase when order execution is needed
+              Err(ArbitrageError::ExchangeError {
+                  exchange: self.name.clone(),
+                  message: "Trading not implemented yet - WebSocket price feed only".to_string(),
+                  code: None,
+              })
           }
 
           async fn get_balance(&self, asset: &str) -> Result<Decimal> {
-              self.rest_client.get_balance(asset).await
+              // REST API not implemented yet - WebSocket price feed only
+              // Will be implemented in arbitrage logic phase when order execution is needed
+              Err(ArbitrageError::ExchangeError {
+                  exchange: self.name.clone(),
+                  message: "Balance queries not implemented yet - WebSocket price feed only".to_string(),
+                  code: None,
+              })
           }
 
           fn name(&self) -> &str {
@@ -1693,151 +1705,31 @@ Implement concrete Binance WebSocket client using the Exchange trait.
 
       **Binance REST Client:**
       ```rust
-      pub struct BinanceRestClient {
-          api_key: String,
-          api_secret: String,
-          base_url: String,
-          client: reqwest::Client,
-      }
-
-      impl BinanceRestClient {
-          pub fn new(api_key: String, api_secret: String, testnet: bool) -> Self {
-              let base_url = if testnet {
-                  "https://testnet.binance.vision".to_string()
-              } else {
-                  "https://api.binance.com".to_string()
-              };
-
-              Self {
-                  api_key,
-                  api_secret,
-                  base_url,
-                  client: reqwest::Client::new(),
-              }
-          }
-
-          pub async fn place_market_order(&self, order: Order) -> Result<OrderResult> {
-              let symbol = order.pair.replace("/", "");
-              let side = match order.side {
-                  OrderSide::Buy => "BUY",
-                  OrderSide::Sell => "SELL",
-              };
-
-              let timestamp = Utc::now().timestamp_millis();
-
-              let mut params = vec![
-                  ("symbol", symbol),
-                  ("side", side.to_string()),
-                  ("type", "MARKET".to_string()),
-                  ("quantity", order.quantity.to_string()),
-                  ("timestamp", timestamp.to_string()),
-              ];
-
-              let signature = self.sign_request(&params);
-              params.push(("signature", signature));
-
-              let url = format!("{}/api/v3/order", self.base_url);
-
-              let response = self.client
-                  .post(&url)
-                  .header("X-MBX-APIKEY", &self.api_key)
-                  .form(&params)
-                  .send()
-                  .await?;
-
-              // Parse response and convert to OrderResult
-              let result: BinanceOrderResponse = response.json().await?;
-              Ok(result.into())
-          }
-
-          pub async fn get_balance(&self, asset: &str) -> Result<Decimal> {
-              let timestamp = Utc::now().timestamp_millis();
-
-              let params = vec![("timestamp", timestamp.to_string())];
-              let signature = self.sign_request(&params);
-
-              let url = format!(
-                  "{}/api/v3/account?timestamp={}&signature={}",
-                  self.base_url, timestamp, signature
-              );
-
-              let response = self.client
-                  .get(&url)
-                  .header("X-MBX-APIKEY", &self.api_key)
-                  .send()
-                  .await?;
-
-              let account: BinanceAccountInfo = response.json().await?;
-
-              account.balances.iter()
-                  .find(|b| b.asset == asset)
-                  .map(|b| b.free)
-                  .ok_or_else(|| ArbitrageError::ExchangeError {
-                      exchange: "binance".into(),
-                      message: format!("Asset not found: {}", asset),
-                      code: None,
-                  })
-          }
-
-          fn sign_request(&self, params: &[(impl AsRef<str>, impl AsRef<str>)]) -> String {
-              use hmac::{Hmac, Mac};
-              use sha2::Sha256;
-
-              let query_string = params.iter()
-                  .map(|(k, v)| format!("{}={}", k.as_ref(), v.as_ref()))
-                  .collect::<Vec<_>>()
-                  .join("&");
-
-              let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes())
-                  .expect("HMAC can take key of any size");
-              mac.update(query_string.as_bytes());
-
-              hex::encode(mac.finalize().into_bytes())
-          }
-      }
+      // DEFERRED - Will be implemented in arbitrage logic phase when order execution is needed
+      // REST API client stub exists in src/exchanges/binance/rest.rs
+      // Full implementation will include:
+      // - BinanceRestClient struct
+      // - place_market_order() method
+      // - get_balance() method
+      // - Request signing (HMAC SHA256)
+      // - Rate limit handling
+      // - Server time synchronization
       ```
-      Add unit tests for:
-      - Request signing
-      - Parameter formatting
-      - URL construction
+
+      **Note:** REST API implementation is deferred until arbitrage logic phase. The Exchange trait methods `place_order()` and `get_balance()` currently return errors indicating WebSocket-only mode.
 
       **Binance-Specific Types:**
       ```rust
-      #[derive(Debug, Deserialize)]
-      pub struct BinanceOrderResponse {
-          #[serde(rename = "orderId")]
-          pub order_id: u64,
-          pub symbol: String,
-          pub status: String,
-          #[serde(rename = "executedQty")]
-          pub executed_qty: String,
-          #[serde(rename = "cummulativeQuoteQty")]
-          pub cumulative_quote_qty: String,
-      }
-
-      impl From<BinanceOrderResponse> for OrderResult {
-          fn from(response: BinanceOrderResponse) -> Self {
-              // Convert Binance response to our OrderResult type
-              // ...
-          }
-      }
-
-      #[derive(Debug, Deserialize)]
-      pub struct BinanceAccountInfo {
-          pub balances: Vec<BinanceBalance>,
-      }
-
-      #[derive(Debug, Deserialize)]
-      pub struct BinanceBalance {
-          pub asset: String,
-          pub free: Decimal,
-          pub locked: Decimal,
-      }
+      // DEFERRED - Will be implemented in arbitrage logic phase
+      // Types needed for REST API:
+      // - BinanceOrderResponse
+      // - BinanceAccountInfo
+      // - BinanceBalance
+      // - Type conversions to OrderResult
       ```
-      Add unit tests for type conversions
 
-      - Handle Binance rate limits (weight-based)
-      - Server time synchronization for signatures
+      - Handle Binance rate limits (weight-based) - **DEFERRED**
+      - Server time synchronization for signatures - **DEFERRED**
       - Add comprehensive documentation
     </requirements>
 
@@ -1857,20 +1749,22 @@ Implement concrete Binance WebSocket client using the Exchange trait.
     - Connection to testnet works
     - Ticker subscription works
     - Message parsing accurate
-    - Order placement works (testnet)
-    - Balance queries work
     - All tests pass
     - No clippy warnings
+    - ~~Order placement works (testnet)~~ **DEFERRED**
+    - ~~Balance queries work~~ **DEFERRED**
   </validation>
 
   <completion_criteria>
     ❌ Tests written and failing initially (TDD)
-    💻 Binance integration implemented
-    ✅ WebSocket and REST working
-    ✅ All tests passing
-    ✅ Unit tests for parsers and REST
+    💻 Binance WebSocket integration implemented
+    ✅ WebSocket working (price feeds)
+    ❌ REST API working - **DEFERRED until arbitrage logic phase**
+    ✅ All tests passing (WebSocket tests)
+    ✅ Unit tests for parser
+    ❌ Unit tests for REST - **DEFERRED**
     ✅ Documentation complete
-    ✅ Human verification with testnet
+    ✅ Human verification with testnet (WebSocket verified)
   </completion_criteria>
 </task>
 ````
@@ -1878,11 +1772,13 @@ Implement concrete Binance WebSocket client using the Exchange trait.
 ### Files to Create
 
 1. **src/exchanges/binance/mod.rs** - Module exports and BinanceExchange struct
-2. **src/exchanges/binance/websocket.rs** - WebSocket-specific code with unit tests
-3. **src/exchanges/binance/rest.rs** - REST API client with unit tests
+2. **src/exchanges/binance/exchange.rs** - BinanceExchange implementation (WebSocket focus)
+3. **src/exchanges/binance/parser.rs** - Message parser with unit tests
 4. **src/exchanges/binance/types.rs** - Binance-specific types with unit tests
-5. **src/exchanges/binance/parser.rs** - Message parser with unit tests
-6. **tests/binance.rs** - Integration tests
+5. **src/exchanges/binance/rest.rs** - REST API client stub (implementation deferred)
+6. **tests/binance.rs** - Integration tests (WebSocket focus)
+
+**Note:** REST API implementation files will be completed in arbitrage logic phase when order execution is needed.
 
 ### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
@@ -1899,7 +1795,7 @@ Implement Coinbase Advanced Trade API integration using the Exchange trait.
 1. Coinbase-specific Exchange implementation
 2. WebSocket ticker subscription
 3. Message parsing for Coinbase format
-4. JWT authentication for REST API
+4. ~~JWT authentication for REST API~~ **DEFERRED** - Will be implemented in arbitrage logic phase when order execution is needed
 
 ### Implementation Specification
 
@@ -1915,11 +1811,10 @@ Implement Coinbase Advanced Trade API integration using the Exchange trait.
       - Connect to Coinbase WebSocket
       - Subscribe to SOL-USDC ticker
       - Parse Coinbase ticker messages
-      - Handle authentication for REST API
-      - Test JWT token generation
-      - Test order placement (sandbox)
-      - Test balance queries
       - Handle product_id format conversion
+      - Use mock for unit tests, real sandbox for integration
+
+      **Note:** REST API tests (authentication, JWT token generation, order placement, balance queries) are deferred until arbitrage logic phase when order execution is needed.
 
       These tests define expected behavior before implementation.
     </description>
@@ -1933,24 +1828,25 @@ Implement Coinbase Advanced Trade API integration using the Exchange trait.
           name: String,
           config: CoinbaseConfig,
           ws_manager: Option<WebSocketManager<CoinbaseParser>>,
-          rest_client: CoinbaseRestClient,
+          // rest_client: CoinbaseRestClient,  // DEFERRED - Will be added in arbitrage logic phase
           price_rx: Option<broadcast::Receiver<Price>>,
           latest_prices: Arc<RwLock<HashMap<String, Price>>>,
       }
 
       impl CoinbaseExchange {
           pub fn new(config: CoinbaseConfig) -> Result<Self> {
-              let rest_client = CoinbaseRestClient::new(
-                  config.api_key.clone(),
-                  config.api_secret.clone(),
-                  config.sandbox,
-              );
+              // REST client initialization deferred until arbitrage logic phase
+              // let rest_client = CoinbaseRestClient::new(
+              //     config.api_key.clone(),
+              //     config.api_secret.clone(),
+              //     config.sandbox,
+              // );
 
               Ok(Self {
                   name: "coinbase".to_string(),
                   config,
                   ws_manager: None,
-                  rest_client,
+                  // rest_client,  // DEFERRED
                   price_rx: None,
                   latest_prices: Arc::new(RwLock::new(HashMap::new())),
               })
@@ -2077,167 +1973,34 @@ Implement Coinbase Advanced Trade API integration using the Exchange trait.
 
       **Coinbase REST Client with JWT Auth:**
       ```rust
-      use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
-
-      pub struct CoinbaseRestClient {
-          api_key: String,
-          api_secret: String,
-          base_url: String,
-          client: reqwest::Client,
-      }
-
-      impl CoinbaseRestClient {
-          pub fn new(api_key: String, api_secret: String, sandbox: bool) -> Self {
-              let base_url = if sandbox {
-                  "https://api-public.sandbox.exchange.coinbase.com".to_string()
-              } else {
-                  "https://api.coinbase.com".to_string()
-              };
-
-              Self {
-                  api_key,
-                  api_secret,
-                  base_url,
-                  client: reqwest::Client::new(),
-              }
-          }
-
-          fn generate_jwt(&self, request_method: &str, request_path: &str) -> Result<String> {
-              use serde::{Deserialize, Serialize};
-
-              #[derive(Debug, Serialize, Deserialize)]
-              struct Claims {
-                  sub: String,
-                  iss: String,
-                  nbf: i64,
-                  exp: i64,
-                  uri: String,
-              }
-
-              let now = Utc::now().timestamp();
-
-              let claims = Claims {
-                  sub: self.api_key.clone(),
-                  iss: "cdp".to_string(),  // Coinbase Developer Platform
-                  nbf: now,
-                  exp: now + 120,  // 2 minutes
-                  uri: format!("{} {}{}", request_method, self.base_url, request_path),
-              };
-
-              let header = Header::new(Algorithm::ES256);
-
-              encode(
-                  &header,
-                  &claims,
-                  &EncodingKey::from_ec_pem(self.api_secret.as_bytes())?,
-              ).map_err(|e| ArbitrageError::AuthenticationError {
-                  exchange: "coinbase".into(),
-                  reason: format!("JWT generation failed: {}", e),
-              })
-          }
-
-          pub async fn place_market_order(&self, order: Order) -> Result<OrderResult> {
-              let product_id = order.pair.replace("/", "-");
-              let side = match order.side {
-                  OrderSide::Buy => "BUY",
-                  OrderSide::Sell => "SELL",
-              };
-
-              let request_path = "/api/v3/brokerage/orders";
-              let jwt = self.generate_jwt("POST", request_path)?;
-
-              let body = json!({
-                  "product_id": product_id,
-                  "side": side,
-                  "order_configuration": {
-                      "market_market_ioc": {
-                          "quote_size": order.quantity.to_string()
-                      }
-                  }
-              });
-
-              let url = format!("{}{}", self.base_url, request_path);
-
-              let response = self.client
-                  .post(&url)
-                  .header("Authorization", format!("Bearer {}", jwt))
-                  .header("Content-Type", "application/json")
-                  .json(&body)
-                  .send()
-                  .await?;
-
-              let result: CoinbaseOrderResponse = response.json().await?;
-              Ok(result.into())
-          }
-
-          pub async fn get_balance(&self, asset: &str) -> Result<Decimal> {
-              let request_path = "/api/v3/brokerage/accounts";
-              let jwt = self.generate_jwt("GET", request_path)?;
-
-              let url = format!("{}{}", self.base_url, request_path);
-
-              let response = self.client
-                  .get(&url)
-                  .header("Authorization", format!("Bearer {}", jwt))
-                  .send()
-                  .await?;
-
-              let accounts: CoinbaseAccountsResponse = response.json().await?;
-
-              accounts.accounts.iter()
-                  .find(|a| a.currency == asset)
-                  .map(|a| a.available_balance.value)
-                  .ok_or_else(|| ArbitrageError::ExchangeError {
-                      exchange: "coinbase".into(),
-                      message: format!("Asset not found: {}", asset),
-                      code: None,
-                  })
-          }
-      }
+      // DEFERRED - Will be implemented in arbitrage logic phase when order execution is needed
+      // REST API client stub exists in src/exchanges/coinbase/rest.rs
+      // Full implementation will include:
+      // - CoinbaseRestClient struct
+      // - JWT token generation (ES256 algorithm)
+      // - place_market_order() method
+      // - get_balance() method
+      // - Request signing with JWT
+      // - Rate limit handling
       ```
-      Add unit tests for:
-      - JWT generation
-      - Request formatting
-      - URL construction
+
+      **Note:** REST API implementation is deferred until arbitrage logic phase. The Exchange trait methods `place_order()` and `get_balance()` currently return errors indicating WebSocket-only mode.
 
       **Coinbase-Specific Types:**
       ```rust
-      #[derive(Debug, Deserialize)]
-      pub struct CoinbaseOrderResponse {
-          pub order_id: String,
-          pub product_id: String,
-          pub side: String,
-          pub status: String,
-      }
-
-      impl From<CoinbaseOrderResponse> for OrderResult {
-          fn from(response: CoinbaseOrderResponse) -> Self {
-              // Convert Coinbase response to OrderResult
-              // ...
-          }
-      }
-
-      #[derive(Debug, Deserialize)]
-      pub struct CoinbaseAccountsResponse {
-          pub accounts: Vec<CoinbaseAccount>,
-      }
-
-      #[derive(Debug, Deserialize)]
-      pub struct CoinbaseAccount {
-          pub uuid: String,
-          pub currency: String,
-          pub available_balance: CoinbaseBalance,
-      }
-
-      #[derive(Debug, Deserialize)]
-      pub struct CoinbaseBalance {
-          pub value: Decimal,
-          pub currency: String,
-      }
+      // DEFERRED - Will be implemented in arbitrage logic phase
+      // Types needed for REST API:
+      // - CoinbaseOrderResponse
+      // - CoinbaseAccountsResponse
+      // - CoinbaseBalance
+      // - Type conversions to OrderResult
       ```
-      Add unit tests for type conversions
 
-      - JWT authentication with ES256 algorithm
+      Add unit tests for (when implemented):
+      - JWT token generation
+      - Request formatting
+      - URL construction
+
       - Product ID format handling (SOL-USDC vs SOL/USDC)
       - Rate limit: 10 requests per second
       - Add comprehensive documentation
@@ -2258,22 +2021,24 @@ Implement Coinbase Advanced Trade API integration using the Exchange trait.
     - Connection works
     - Ticker subscription works
     - Message parsing accurate
-    - JWT generation correct
-    - Order placement works (sandbox)
-    - Balance queries work
     - All tests pass
     - No clippy warnings
+    - ~~JWT generation correct~~ **DEFERRED**
+    - ~~Order placement works (sandbox)~~ **DEFERRED**
+    - ~~Balance queries work~~ **DEFERRED**
   </validation>
 
   <completion_criteria>
     ❌ Tests written and failing initially (TDD)
-    💻 Coinbase integration implemented
-    ✅ WebSocket and REST working
-    ✅ JWT auth working correctly
-    ✅ All tests passing
-    ✅ Unit tests for parsers, auth, REST
+    💻 Coinbase WebSocket integration implemented
+    ✅ WebSocket working (price feeds)
+    ❌ REST API working - **DEFERRED until arbitrage logic phase**
+    ❌ JWT auth working correctly - **DEFERRED**
+    ✅ All tests passing (WebSocket tests)
+    ✅ Unit tests for parser
+    ❌ Unit tests for auth, REST - **DEFERRED**
     ✅ Documentation complete
-    ✅ Human verification with sandbox
+    ✅ Human verification with sandbox (WebSocket verified)
   </completion_criteria>
 </task>
 ````
@@ -2281,12 +2046,14 @@ Implement Coinbase Advanced Trade API integration using the Exchange trait.
 ### Files to Create
 
 1. **src/exchanges/coinbase/mod.rs** - Module exports and CoinbaseExchange struct
-2. **src/exchanges/coinbase/websocket.rs** - WebSocket-specific code with unit tests
-3. **src/exchanges/coinbase/rest.rs** - REST API client with unit tests
+2. **src/exchanges/coinbase/exchange.rs** - CoinbaseExchange implementation (WebSocket focus)
+3. **src/exchanges/coinbase/parser.rs** - Message parser with unit tests
 4. **src/exchanges/coinbase/types.rs** - Coinbase-specific types with unit tests
-5. **src/exchanges/coinbase/parser.rs** - Message parser with unit tests
-6. **src/exchanges/coinbase/auth.rs** - JWT authentication with unit tests
-7. **tests/coinbase.rs** - Integration tests
+5. **src/exchanges/coinbase/rest.rs** - REST API client stub (implementation deferred)
+6. **src/exchanges/coinbase/auth.rs** - JWT authentication stub (implementation deferred)
+7. **tests/coinbase.rs** - Integration tests (WebSocket focus)
+
+**Note:** REST API and JWT authentication implementation files will be completed in arbitrage logic phase when order execution is needed.
 
 ### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.
 
