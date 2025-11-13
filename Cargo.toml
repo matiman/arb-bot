@@ -28,5 +28,9 @@ hex = "0.4"
 name = "binance_websocket_test"
 path = "examples/binance_websocket_test.rs"
 
+[[example]]
+name = "coinbase_websocket_test"
+path = "examples/coinbase_websocket_test.rs"
+
 [dev-dependencies]
 # MockExchange is available in tests via test-utils feature
