@@ -97,10 +97,7 @@ impl BinanceExchange {
                 loop {
                     match rx.recv().await {
                         Ok(price) => {
-                            println!(
-                                "📊 Received price update: {} = bid:{}, ask:{}",
-                                price.pair, price.bid, price.ask
-                            );
+                            // Silently cache price updates (no verbose logging)
                             prices.write().insert(price.pair.clone(), price);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {

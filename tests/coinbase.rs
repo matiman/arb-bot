@@ -46,7 +46,7 @@ async fn test_coinbase_connect() {
     let mut exchange = CoinbaseExchange::new(config).unwrap();
 
     // subscribe_ticker() handles the connection
-    exchange.subscribe_ticker("SOL/USDC").await.unwrap();
+    exchange.subscribe_ticker("SOL/USD").await.unwrap();
 
     // Give it a moment for price data to arrive
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -55,8 +55,8 @@ async fn test_coinbase_connect() {
     assert!(exchange.is_connected());
 
     // Verify we can actually get a price
-    let price = exchange.get_latest_price("SOL/USDC").await.unwrap();
-    assert_eq!(price.pair, "SOL/USDC");
+    let price = exchange.get_latest_price("SOL/USD").await.unwrap();
+    assert_eq!(price.pair, "SOL/USD");
 
     exchange.disconnect().await.unwrap();
 }
@@ -68,12 +68,12 @@ async fn test_coinbase_subscribe_ticker() {
     let config = create_production_config();
     let mut exchange = CoinbaseExchange::new(config).unwrap();
 
-    exchange.subscribe_ticker("SOL/USDC").await.unwrap();
+    exchange.subscribe_ticker("SOL/USD").await.unwrap();
 
     // Wait for price update
     let price = timeout(Duration::from_secs(15), async {
         loop {
-            match exchange.get_latest_price("SOL/USDC").await {
+            match exchange.get_latest_price("SOL/USD").await {
                 Ok(p) => return p,
                 Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
             }
@@ -82,7 +82,7 @@ async fn test_coinbase_subscribe_ticker() {
     .await
     .unwrap();
 
-    assert_eq!(price.pair, "SOL/USDC");
+    assert_eq!(price.pair, "SOL/USD");
     assert!(price.bid > Decimal::ZERO);
     assert!(price.ask > price.bid);
     assert!(price.last > Decimal::ZERO);

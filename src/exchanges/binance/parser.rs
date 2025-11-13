@@ -53,17 +53,12 @@ impl MessageParser for BinanceParser {
     type Output = Price;
 
     fn parse(&self, message: &str) -> Result<Self::Output> {
-        // Debug: print first 200 chars of message
+        // Debug: print first 200 chars of message (only for errors)
         let preview = if message.len() > 200 {
             format!("{}...", &message[..200])
         } else {
             message.to_string()
         };
-        println!(
-            "🔍 BinanceParser: Received message ({} chars): {}",
-            message.len(),
-            preview
-        );
 
         let value: serde_json::Value = serde_json::from_str(message).map_err(|e| {
             eprintln!(
