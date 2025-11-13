@@ -1,3 +1,4 @@
+pub mod binance;
 pub mod factory;
 pub mod types;
 
