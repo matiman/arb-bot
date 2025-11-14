@@ -22,8 +22,6 @@ use super::parser::CoinbaseParser;
 /// Connects to Coinbase Advanced Trade WebSocket stream to receive real-time ticker updates.
 /// Prices are stored in-memory and can be queried via `get_latest_price()`.
 ///
-/// **WebSocket-only**: This implementation focuses on price feeds only.
-/// REST API for trading will be added later.
 pub struct CoinbaseExchange {
     name: String,
     config: CoinbaseConfig,
@@ -255,19 +253,17 @@ impl Exchange for CoinbaseExchange {
         &mut self,
         _order: crate::exchanges::Order,
     ) -> Result<crate::exchanges::OrderResult> {
-        // REST API not implemented yet - WebSocket only
         Err(ArbitrageError::ExchangeError {
             exchange: self.name.clone(),
-            message: "Trading not implemented yet - WebSocket price feed only".to_string(),
+            message: "REST API not implemented for Coinbase".to_string(),
             code: None,
         })
     }
 
     async fn get_balance(&self, _asset: &str) -> Result<rust_decimal::Decimal> {
-        // REST API not implemented yet - WebSocket only
         Err(ArbitrageError::ExchangeError {
             exchange: self.name.clone(),
-            message: "Balance queries not implemented yet - WebSocket price feed only".to_string(),
+            message: "REST API not implemented for Coinbase".to_string(),
             code: None,
         })
     }

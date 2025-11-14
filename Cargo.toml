@@ -26,6 +26,20 @@ reqwest = { version = "0.11", default-features = false, features = [
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
+# JWT signing (ES256 algorithm) for Coinbase REST API
+jsonwebtoken = "9.3"
+# ECDSA P-256 curve support
+p256 = "0.13"
+# For parsing PEM-encoded EC private keys
+pkcs8 = "0.10"
+sec1 = "0.7"  # For parsing SEC1 format EC keys
+ecdsa = "0.16"
+# For loading .env files
+dotenvy = "0.15"
+# For generating random nonces
+rand = "0.8"
+# For base64 encoding in JWT
+base64 = "0.22"
 
 [[example]]
 name = "binance_websocket_test"
@@ -36,4 +50,4 @@ name = "coinbase_websocket_test"
 path = "examples/coinbase_websocket_test.rs"
 
 [dev-dependencies]
-# MockExchange is available in tests via test-utils feature
+base64 = "0.22"  # For JWT decoding in tests

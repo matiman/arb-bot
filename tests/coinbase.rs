@@ -170,38 +170,3 @@ async fn test_coinbase_error_handling() {
     let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("No price data") || error_msg.contains("INVALID"));
 }
-
-#[tokio::test]
-async fn test_coinbase_rest_sign_request() {
-    // Test JWT token generation
-    // REST API deferred - test will be implemented in arbitrage logic phase
-    // This test is intentionally empty until REST API is implemented
-}
-
-#[tokio::test]
-#[ignore] // REST API deferred - requires sandbox API keys
-async fn test_coinbase_rest_get_balance() {
-    // Test balance query (sandbox)
-    // REST API deferred - test will be implemented in arbitrage logic phase
-    let _config = create_sandbox_config();
-    // This will fail until CoinbaseRestClient is implemented
-    // let client = CoinbaseRestClient::new(config.api_key, config.api_secret, config.sandbox);
-    // let balance = client.get_balance("USDC").await.unwrap();
-    // assert!(balance >= Decimal::ZERO);
-}
-
-#[tokio::test]
-#[ignore] // REST API deferred - requires sandbox API keys
-async fn test_coinbase_rest_place_order() {
-    // Test market order placement (sandbox)
-    // REST API deferred - test will be implemented in arbitrage logic phase
-    let _config = create_sandbox_config();
-    // This will fail until CoinbaseRestClient and CoinbaseExchange are implemented
-    // let mut exchange = CoinbaseExchange::new(config).unwrap();
-    //
-    // let order = Order::market_buy("SOL/USDC", Decimal::from(10));
-    // let result = exchange.place_order(order).await.unwrap();
-    //
-    // assert!(result.is_complete() || !result.is_complete()); // Either is valid
-    // assert!(!result.order_id.is_empty());
-}

@@ -38,3 +38,6 @@ docs/ai_prompts/**
 
 
 
+
+# Coinbase API credentials - DO NOT COMMIT
+cdp_api_key.json
