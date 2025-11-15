@@ -48,7 +48,7 @@ impl CoinbaseAuth {
         // Basic validation: check if api_secret looks like a PEM key
         if !api_secret.contains("BEGIN EC PRIVATE KEY") {
             return Err(ArbitrageError::AuthenticationError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 reason: "Invalid private key format. Expected PEM-encoded EC private key."
                     .to_string(),
             });
@@ -81,7 +81,7 @@ impl CoinbaseAuth {
         // Build JWT claims
         let claims = CoinbaseClaims {
             sub: self.api_key.clone(),
-            iss: "cdp".to_string(), // Must be "cdp" for Coinbase App API
+            iss: crate::constants::jwt::COINBASE_ISSUER.to_string(),
             nbf: now.timestamp(),
             exp: (now + Duration::minutes(2)).timestamp(), // 2 minutes expiration
             uri,
@@ -113,7 +113,7 @@ impl CoinbaseAuth {
         // Parse SEC1 format
         let signing_key = SigningKey::from_sec1_pem(&key_str).map_err(|e| {
             ArbitrageError::AuthenticationError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 reason: format!("Failed to parse SEC1 EC private key: {}", e),
             }
         })?;
@@ -122,7 +122,7 @@ impl CoinbaseAuth {
         // 1. Encode header
         let header_json =
             serde_json::to_string(&header).map_err(|e| ArbitrageError::AuthenticationError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 reason: format!("Failed to serialize JWT header: {}", e),
             })?;
         let header_b64 =
@@ -131,7 +131,7 @@ impl CoinbaseAuth {
         // 2. Encode payload
         let claims_json =
             serde_json::to_string(&claims).map_err(|e| ArbitrageError::AuthenticationError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 reason: format!("Failed to serialize JWT claims: {}", e),
             })?;
         let payload_b64 =

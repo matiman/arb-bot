@@ -221,7 +221,6 @@ mod tests {
     use crate::exchanges::Price;
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use tokio::time::Duration;
 
     #[derive(Clone)]
     struct TestParser;

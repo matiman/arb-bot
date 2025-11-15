@@ -253,7 +253,7 @@ mod tests {
             filled_quantity: Decimal::from(10),
             average_price: Some(Decimal::from(100)),
             fee: Decimal::from(1),
-            fee_asset: "USDC".to_string(),
+            fee_asset: crate::constants::currency::USDC.to_string(),
             timestamp: Utc::now(),
         };
         assert!(filled.is_complete());
@@ -264,7 +264,7 @@ mod tests {
             filled_quantity: Decimal::from(10),
             average_price: Some(Decimal::from(100)),
             fee: Decimal::from(1),
-            fee_asset: "USDC".to_string(),
+            fee_asset: crate::constants::currency::USDC.to_string(),
             timestamp: Utc::now(),
         };
         assert!(!pending.is_complete());
@@ -278,7 +278,7 @@ mod tests {
             filled_quantity: Decimal::from(10),
             average_price: Some(Decimal::from(100)),
             fee: Decimal::from(1),
-            fee_asset: "USDC".to_string(),
+            fee_asset: crate::constants::currency::USDC.to_string(),
             timestamp: Utc::now(),
         };
 

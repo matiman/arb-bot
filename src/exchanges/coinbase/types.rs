@@ -81,11 +81,15 @@ impl TryFrom<CoinbaseOrderResponse> for OrderResult {
     type Error = crate::error::ArbitrageError;
 
     fn try_from(response: CoinbaseOrderResponse) -> Result<Self, Self::Error> {
-        let status = match response.status.as_deref().unwrap_or("FILLED") {
-            "FILLED" => OrderStatus::Filled,
-            "PENDING" => OrderStatus::Pending,
-            "PARTIALLY_FILLED" => OrderStatus::PartiallyFilled,
-            "CANCELLED" => OrderStatus::Cancelled,
+        let status = match response
+            .status
+            .as_deref()
+            .unwrap_or(crate::constants::order::FILLED)
+        {
+            s if s == crate::constants::order::FILLED => OrderStatus::Filled,
+            s if s == crate::constants::order::PENDING => OrderStatus::Pending,
+            s if s == crate::constants::order::PARTIALLY_FILLED => OrderStatus::PartiallyFilled,
+            s if s == crate::constants::order::CANCELLED => OrderStatus::Cancelled,
             _ => OrderStatus::Failed,
         };
 
@@ -112,7 +116,7 @@ impl TryFrom<CoinbaseOrderResponse> for OrderResult {
             .product_id
             .split('-')
             .nth(1)
-            .unwrap_or("USDC")
+            .unwrap_or(crate::constants::currency::USDC)
             .to_string();
 
         Ok(OrderResult {
@@ -160,7 +164,7 @@ impl CoinbaseAccount {
     pub fn available_balance_decimal(&self) -> Result<Decimal, crate::error::ArbitrageError> {
         Decimal::from_str(&self.available_balance.value).map_err(|e| {
             crate::error::ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("Failed to parse balance: {}", e),
                 code: None,
             }

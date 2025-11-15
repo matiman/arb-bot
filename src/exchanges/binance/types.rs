@@ -45,7 +45,7 @@ impl From<BinanceOrderResponse> for OrderResult {
                 None
             },
             fee: Decimal::ZERO, // Binance fee info comes from separate endpoint
-            fee_asset: "USDC".to_string(), // Default, should be determined from asset
+            fee_asset: crate::constants::currency::USDC.to_string(), // Default, should be determined from asset
             timestamp: Utc::now(),
         }
     }

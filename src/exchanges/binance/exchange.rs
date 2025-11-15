@@ -24,6 +24,7 @@ use super::parser::BinanceParser;
 /// REST API for trading will be added later.
 pub struct BinanceExchange {
     name: String,
+    #[allow(dead_code)] // Kept for future use (testnet flag, API credentials)
     config: BinanceConfig,
     /// WebSocket manager (moved into spawned task on connect)
     ws_manager_handle: Option<tokio::task::JoinHandle<()>>,
@@ -42,16 +43,16 @@ impl BinanceExchange {
         // Note: Binance.com is geo-restricted (HTTP 451) in US
         // TODO Change to use environment variables
         let base_url = if config.testnet {
-            "wss://testnet.binance.vision/ws".to_string()
+            crate::constants::websocket::BINANCE_TESTNET.to_string()
         } else {
             // Binance.US WebSocket endpoint
             // Format: wss://stream.binance.us:9443/ws or wss://stream.binance.us/ws
             // Try with port 9443 first (matches Binance.com format)
-            "wss://stream.binance.us:9443/ws".to_string()
+            crate::constants::websocket::BINANCE_US_PRODUCTION.to_string()
         };
 
         Ok(Self {
-            name: "binance".to_string(),
+            name: crate::constants::exchange::BINANCE.to_string(),
             config,
             ws_manager_handle: None,
             price_rx: None,
@@ -66,7 +67,7 @@ impl BinanceExchange {
     /// Production: `wss://stream.binance.com:9443/ws/<symbol>@ticker` OR `wss://stream.binance.com:9443/stream?streams=<symbol>@ticker`
     /// Testnet: `wss://testnet.binance.vision/ws/<symbol>@ticker`
     async fn connect_with_subscription(&mut self, pair: &str) -> Result<()> {
-        let symbol = Self::pair_to_symbol(pair);
+        let symbol = BinanceParser::pair_to_symbol(pair);
 
         // Use the base_url configured (already set to Binance.US or Binance.com)
         // Format: wss://stream.binance.us/ws/<symbol>@ticker
@@ -114,14 +115,6 @@ impl BinanceExchange {
         }
 
         Ok(())
-    }
-
-    /// Convert trading pair to Binance symbol format
-    ///
-    /// Example: "SOL/USD" -> "solusd" (lowercase for URL)
-    /// Note: For subscription URL, Binance requires lowercase
-    pub fn pair_to_symbol(pair: &str) -> String {
-        pair.replace("/", "").to_lowercase()
     }
 }
 

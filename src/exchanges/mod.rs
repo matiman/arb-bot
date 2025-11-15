@@ -1,9 +1,7 @@
 pub mod binance;
 pub mod coinbase;
-pub mod factory;
 pub mod types;
 
-pub use factory::{DefaultExchangeFactory, ExchangeFactory};
 pub use types::{Order, OrderResult, OrderSide, OrderStatus, OrderType, Price};
 
 use crate::error::Result;

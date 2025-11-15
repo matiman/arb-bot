@@ -30,6 +30,7 @@ fn create_sandbox_config() -> CoinbaseConfig {
 
 /// Helper to create a production Coinbase config
 /// Coinbase WebSocket works without API keys for public ticker streams
+/// TODO! Remove once Sandbox is working
 fn create_production_config() -> CoinbaseConfig {
     CoinbaseConfig {
         api_key: String::new(),
@@ -148,7 +149,7 @@ async fn test_coinbase_parser_missing_fields() {
 async fn test_coinbase_product_id_conversion() {
     // Test pair format conversion
     // CoinbaseExchange::pair_to_product_id converts SOL/USDC to SOL-USDC
-    assert_eq!(CoinbaseExchange::pair_to_product_id("SOL/USDC"), "SOL-USDC");
+    assert_eq!(CoinbaseParser::pair_to_product_id("SOL/USDC"), "SOL-USDC");
 
     // CoinbaseParser::product_id_to_pair converts SOL-USDC to SOL/USDC
     assert_eq!(CoinbaseParser::product_id_to_pair("SOL-USDC"), "SOL/USDC");

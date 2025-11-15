@@ -5,7 +5,6 @@
 
 pub mod exchange;
 pub mod parser;
-pub mod rest;
 pub mod types;
 
 pub use exchange::BinanceExchange;

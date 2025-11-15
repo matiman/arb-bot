@@ -34,31 +34,37 @@ impl RateLimiter {
 
     async fn wait_if_needed(&self) {
         let now = Instant::now();
-        let mut last_request = self.last_request.lock().unwrap();
-        let mut request_count = self.request_count.lock().unwrap();
+        let wait_time = {
+            let mut last_request = self.last_request.lock().unwrap();
+            let mut request_count = self.request_count.lock().unwrap();
 
-        if let Some(last) = *last_request {
-            if now.duration_since(last) >= self.window {
-                // Window expired, reset counter
-                *request_count = 0;
-                *last_request = Some(now);
-            } else if *request_count >= self.max_requests {
-                // Need to wait until window expires
-                let wait_time = self.window - now.duration_since(last);
-                drop(last_request);
-                drop(request_count);
-                sleep(wait_time).await;
-                // Reset after waiting
-                let mut last_request = self.last_request.lock().unwrap();
-                let mut request_count = self.request_count.lock().unwrap();
-                *request_count = 0;
-                *last_request = Some(Instant::now());
+            if let Some(last) = *last_request {
+                if now.duration_since(last) >= self.window {
+                    // Window expired, reset counter
+                    *request_count = 0;
+                    *last_request = Some(now);
+                    None // No wait needed
+                } else if *request_count >= self.max_requests {
+                    // Need to wait until window expires
+                    Some(self.window - now.duration_since(last))
+                } else {
+                    *request_count += 1;
+                    None // No wait needed
+                }
             } else {
-                *request_count += 1;
+                *last_request = Some(now);
+                *request_count = 1;
+                None // No wait needed
             }
-        } else {
-            *last_request = Some(now);
-            *request_count = 1;
+        };
+
+        if let Some(wait_time) = wait_time {
+            sleep(wait_time).await;
+            // Reset after waiting
+            let mut last_request = self.last_request.lock().unwrap();
+            let mut request_count = self.request_count.lock().unwrap();
+            *request_count = 0;
+            *last_request = Some(Instant::now());
         }
     }
 }
@@ -85,9 +91,9 @@ impl CoinbaseRestClient {
         let auth = CoinbaseAuth::new(api_key, api_secret)?;
 
         let base_url = if sandbox {
-            "https://api-public.sandbox.exchange.coinbase.com".to_string()
+            crate::constants::api::COINBASE_SANDBOX.to_string()
         } else {
-            "https://api.coinbase.com".to_string()
+            crate::constants::api::COINBASE_PRODUCTION.to_string()
         };
 
         Ok(Self {
@@ -108,12 +114,14 @@ impl CoinbaseRestClient {
     pub async fn get_balance(&self, asset: &str) -> Result<Decimal> {
         self.rate_limiter.wait_if_needed().await;
 
-        let path = "/api/v3/brokerage/accounts";
+        let path = crate::constants::api::COINBASE_ACCOUNTS_PATH;
         let url = format!("{}{}", self.base_url, path);
 
-        let jwt = self
-            .auth
-            .generate_jwt("GET", &self.base_url.replace("https://", ""), path)?;
+        let jwt = self.auth.generate_jwt(
+            crate::constants::http::GET,
+            &self.base_url.replace("https://", ""),
+            path,
+        )?;
 
         let response = self
             .client
@@ -123,7 +131,7 @@ impl CoinbaseRestClient {
             .send()
             .await
             .map_err(|e| ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("HTTP request failed: {}", e),
                 code: None,
             })?;
@@ -137,12 +145,12 @@ impl CoinbaseRestClient {
         if !status.is_success() {
             if status == 401 || status == 403 {
                 return Err(ArbitrageError::AuthenticationError {
-                    exchange: "coinbase".to_string(),
+                    exchange: crate::constants::exchange::COINBASE.to_string(),
                     reason: format!("Authentication failed: {}", response_text),
                 });
             }
             return Err(ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("API error ({}): {}", status, response_text),
                 code: Some(status.as_u16() as i32),
             });
@@ -150,7 +158,7 @@ impl CoinbaseRestClient {
 
         let accounts_response: CoinbaseAccountsResponse = serde_json::from_str(&response_text)
             .map_err(|e| ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("Failed to parse accounts response: {}", e),
                 code: None,
             })?;
@@ -161,7 +169,7 @@ impl CoinbaseRestClient {
             .iter()
             .find(|acc| acc.currency == asset)
             .ok_or_else(|| ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("Account not found for currency: {}", asset),
                 code: None,
             })?;
@@ -180,7 +188,7 @@ impl CoinbaseRestClient {
         // Validate order type
         if !matches!(order.order_type, OrderType::Market) {
             return Err(ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: "Only market orders are supported".to_string(),
                 code: None,
             });
@@ -193,8 +201,8 @@ impl CoinbaseRestClient {
 
         // Convert side: OrderSide -> "BUY" or "SELL"
         let side = match order.side {
-            OrderSide::Buy => "BUY",
-            OrderSide::Sell => "SELL",
+            OrderSide::Buy => crate::constants::order::BUY,
+            OrderSide::Sell => crate::constants::order::SELL,
         };
 
         // For BUY orders: use quote_size (amount in quote currency, e.g., USDC)
@@ -262,12 +270,14 @@ impl CoinbaseRestClient {
             }
         }
 
-        let path = "/api/v3/brokerage/orders";
+        let path = crate::constants::api::COINBASE_ORDERS_PATH;
         let url = format!("{}{}", self.base_url, path);
 
-        let jwt = self
-            .auth
-            .generate_jwt("POST", &self.base_url.replace("https://", ""), path)?;
+        let jwt = self.auth.generate_jwt(
+            crate::constants::http::POST,
+            &self.base_url.replace("https://", ""),
+            path,
+        )?;
 
         let response = self
             .client
@@ -278,7 +288,7 @@ impl CoinbaseRestClient {
             .send()
             .await
             .map_err(|e| ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("HTTP request failed: {}", e),
                 code: None,
             })?;
@@ -292,12 +302,12 @@ impl CoinbaseRestClient {
         if !status.is_success() {
             if status == 401 || status == 403 {
                 return Err(ArbitrageError::AuthenticationError {
-                    exchange: "coinbase".to_string(),
+                    exchange: crate::constants::exchange::COINBASE.to_string(),
                     reason: format!("Authentication failed: {}", response_text),
                 });
             }
             return Err(ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("Order placement failed ({}): {}", status, response_text),
                 code: Some(status.as_u16() as i32),
             });
@@ -305,7 +315,7 @@ impl CoinbaseRestClient {
 
         let wrapper: crate::exchanges::coinbase::types::CoinbaseOrderResponseWrapper =
             serde_json::from_str(&response_text).map_err(|e| ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!(
                     "Failed to parse order response: {}. Response was: {}",
                     e, response_text
@@ -319,7 +329,7 @@ impl CoinbaseRestClient {
                 .map(|e| format!("{}: {}", e.error, e.message))
                 .unwrap_or_else(|| "Unknown error".to_string());
             return Err(ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("Order placement failed: {}", error_msg),
                 code: None,
             });
@@ -329,7 +339,7 @@ impl CoinbaseRestClient {
             wrapper
                 .success_response
                 .ok_or_else(|| ArbitrageError::ExchangeError {
-                    exchange: "coinbase".to_string(),
+                    exchange: crate::constants::exchange::COINBASE.to_string(),
                     message: "Order response missing success_response".to_string(),
                     code: None,
                 })?;
@@ -338,7 +348,7 @@ impl CoinbaseRestClient {
         // If status is not in response, assume FILLED for market orders
         let mut response_with_status = order_response;
         if response_with_status.status.is_none() {
-            response_with_status.status = Some("FILLED".to_string());
+            response_with_status.status = Some(crate::constants::order::FILLED.to_string());
         }
 
         response_with_status.try_into()
