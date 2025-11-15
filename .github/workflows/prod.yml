@@ -30,7 +30,11 @@ jobs:
       run: rustup update stable && rustup default stable
 
     - name: Build and test arb-bot code
-      
+      env:
+        COINBASE_API_KEY: ${{ secrets.COINBASE_API_KEY }}
+        COINBASE_API_SECRET: ${{ secrets.COINBASE_API_SECRET }}
+        BINANCE_TESTNET_API_KEY: ${{ secrets.BINANCE_TESTNET_API_KEY }}
+        BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
       working-directory: .
       run: |
         cargo build --verbose
