@@ -37,6 +37,22 @@ jobs:
         BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
       working-directory: .
       run: |
+        # Verify environment variables are set (without exposing secrets)
+        if [ -z "$COINBASE_API_KEY" ]; then
+          echo "❌ COINBASE_API_KEY is not set"
+          exit 1
+        fi
+        if [ -z "$COINBASE_API_SECRET" ]; then
+          echo "❌ COINBASE_API_SECRET is not set"
+          exit 1
+        fi
+        echo "✅ Environment variables are set"
+        echo "COINBASE_API_KEY length: ${#COINBASE_API_KEY}"
+        echo "COINBASE_API_SECRET length: ${#COINBASE_API_SECRET}"
+        # Check if secret contains BEGIN marker
+        if [[ "$COINBASE_API_SECRET" != *"BEGIN EC PRIVATE KEY"* ]]; then
+          echo "⚠️  WARNING: COINBASE_API_SECRET does not contain 'BEGIN EC PRIVATE KEY' marker"
+        fi
         cargo build --verbose
         cargo test --verbose
 
