@@ -18,12 +18,22 @@
 use arb_bot::config::CoinbaseConfig;
 use arb_bot::exchanges::Exchange;
 use arb_bot::exchanges::coinbase::CoinbaseExchange;
+use arb_bot::logger::{LogFormat, LoggerConfig, info, warn};
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🔌 Connecting to Coinbase Advanced Trade WebSocket...");
+async fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
+
+    // Initialize logger
+    LoggerConfig::new()
+        .with_level("info")
+        .with_format(LogFormat::Pretty)
+        .init()
+        .map_err(|e| color_eyre::eyre::eyre!("Failed to initialize logger: {}", e))?;
+
+    info!("Connecting to Coinbase Advanced Trade WebSocket...");
 
     // Create Coinbase config
     // Using production Coinbase Advanced Trade Market Data endpoint
@@ -36,42 +46,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Create exchange instance
-    let mut exchange = CoinbaseExchange::new(config)?;
+    let mut exchange =
+        CoinbaseExchange::new(config).map_err(|e| color_eyre::eyre::eyre!("{}", e))?;
 
     // Subscribe to ticker (this connects and sends subscription message)
     // Coinbase uses product_id format: SOL-USD (not SOL-USDC)
     let pair = "SOL/USD";
 
-    exchange.subscribe_ticker(pair).await?;
-    println!("✅ Connected and subscribed to {} ticker!", pair);
+    exchange
+        .subscribe_ticker(pair)
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!("{}", e))?;
+    info!(pair = %pair, "Connected and subscribed to ticker");
 
     // Poll for price updates
-    println!("\n📈 Waiting for price updates (Ctrl+C to stop)...\n");
+    info!("Waiting for price updates (Ctrl+C to stop)...");
 
     for i in 0..10 {
         sleep(Duration::from_secs(2)).await;
 
         match exchange.get_latest_price(pair).await {
             Ok(price) => {
-                println!(
-                    "[{}] {}: bid={}, ask={}, last={}, spread={:.4}%",
-                    i + 1,
-                    pair,
-                    price.bid,
-                    price.ask,
-                    price.last,
-                    price.spread_percentage()
+                info!(
+                    iteration = i + 1,
+                    pair = %pair,
+                    bid = %price.bid,
+                    ask = %price.ask,
+                    last = %price.last,
+                    spread_pct = %price.spread_percentage(),
+                    "Price update"
                 );
             }
             Err(e) => {
-                println!("[{}] No price data yet: {}", i + 1, e);
+                warn!(iteration = i + 1, error = %e, "No price data yet");
             }
         }
     }
 
-    println!("\n🔌 Disconnecting...");
-    exchange.disconnect().await?;
-    println!("✅ Disconnected");
+    info!("Disconnecting...");
+    exchange
+        .disconnect()
+        .await
+        .map_err(|e| color_eyre::eyre::eyre!("{}", e))?;
+    info!("Disconnected");
 
     Ok(())
 }

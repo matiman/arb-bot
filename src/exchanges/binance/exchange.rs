@@ -5,6 +5,7 @@
 use crate::config::BinanceConfig;
 use crate::error::{ArbitrageError, Result};
 use crate::exchanges::{Exchange, Price};
+use crate::logger::{error, warn};
 use crate::websocket::{ReconnectionStrategy, WebSocketManager};
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -66,6 +67,7 @@ impl BinanceExchange {
     /// Binance supports subscribing via URL parameter:
     /// Production: `wss://stream.binance.com:9443/ws/<symbol>@ticker` OR `wss://stream.binance.com:9443/stream?streams=<symbol>@ticker`
     /// Testnet: `wss://testnet.binance.vision/ws/<symbol>@ticker`
+    #[tracing::instrument(name = "connect_with_subscription", skip(self), fields(exchange = %self.name, pair = %pair))]
     async fn connect_with_subscription(&mut self, pair: &str) -> Result<()> {
         let symbol = BinanceParser::pair_to_symbol(pair);
 
@@ -85,7 +87,7 @@ impl BinanceExchange {
         // Spawn background task to run WebSocket manager
         let handle = tokio::spawn(async move {
             if let Err(e) = manager.run().await {
-                eprintln!("Binance WebSocket manager error: {}", e);
+                error!(error = %e, "Binance WebSocket manager error");
             }
         });
 
@@ -102,11 +104,11 @@ impl BinanceExchange {
                             prices.write().insert(price.pair.clone(), price);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                            eprintln!("⚠️ Lagged {} messages", skipped);
+                            warn!(skipped = skipped, "Lagged messages");
                             continue;
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                            eprintln!("❌ Broadcast channel closed");
+                            error!("Broadcast channel closed");
                             break;
                         }
                     }
@@ -127,6 +129,7 @@ impl Exchange for BinanceExchange {
         Ok(())
     }
 
+    #[tracing::instrument(name = "subscribe_ticker", skip(self), fields(exchange = %self.name, pair = %pair))]
     async fn subscribe_ticker(&mut self, pair: &str) -> Result<()> {
         // Disconnect existing connection if any
         self.disconnect().await.ok();
@@ -156,6 +159,7 @@ impl Exchange for BinanceExchange {
         Ok(())
     }
 
+    #[tracing::instrument(name = "get_latest_price", skip(self), fields(exchange = %self.name, pair = %pair))]
     async fn get_latest_price(&self, pair: &str) -> Result<Price> {
         let prices = self.latest_prices.read();
         prices

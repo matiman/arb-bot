@@ -32,11 +32,23 @@ impl RateLimiter {
         }
     }
 
-    async fn wait_if_needed(&self) {
+    async fn wait_if_needed(&self) -> Result<()> {
         let now = Instant::now();
         let wait_time = {
-            let mut last_request = self.last_request.lock().unwrap();
-            let mut request_count = self.request_count.lock().unwrap();
+            let mut last_request =
+                self.last_request
+                    .lock()
+                    .map_err(|_| ArbitrageError::NetworkError {
+                        message: "Rate limiter mutex poisoned".into(),
+                        retry_after: None,
+                    })?;
+            let mut request_count =
+                self.request_count
+                    .lock()
+                    .map_err(|_| ArbitrageError::NetworkError {
+                        message: "Rate limiter mutex poisoned".into(),
+                        retry_after: None,
+                    })?;
 
             if let Some(last) = *last_request {
                 if now.duration_since(last) >= self.window {
@@ -61,11 +73,25 @@ impl RateLimiter {
         if let Some(wait_time) = wait_time {
             sleep(wait_time).await;
             // Reset after waiting
-            let mut last_request = self.last_request.lock().unwrap();
-            let mut request_count = self.request_count.lock().unwrap();
+            let mut last_request =
+                self.last_request
+                    .lock()
+                    .map_err(|_| ArbitrageError::NetworkError {
+                        message: "Rate limiter mutex poisoned".into(),
+                        retry_after: None,
+                    })?;
+            let mut request_count =
+                self.request_count
+                    .lock()
+                    .map_err(|_| ArbitrageError::NetworkError {
+                        message: "Rate limiter mutex poisoned".into(),
+                        retry_after: None,
+                    })?;
             *request_count = 0;
             *last_request = Some(Instant::now());
         }
+
+        Ok(())
     }
 }
 
@@ -111,8 +137,9 @@ impl CoinbaseRestClient {
     ///
     /// # Returns
     /// Available balance as Decimal, or ExchangeError if account not found
+    #[tracing::instrument(name = "get_balance", skip(self), fields(asset = %asset))]
     pub async fn get_balance(&self, asset: &str) -> Result<Decimal> {
-        self.rate_limiter.wait_if_needed().await;
+        self.rate_limiter.wait_if_needed().await?;
 
         let path = crate::constants::api::COINBASE_ACCOUNTS_PATH;
         let url = format!("{}{}", self.base_url, path);
@@ -184,6 +211,11 @@ impl CoinbaseRestClient {
     ///
     /// # Returns
     /// OrderResult with order details, or error if order placement fails
+    #[tracing::instrument(name = "place_market_order", skip(self, order), fields(
+        pair = %order.pair,
+        side = ?order.side,
+        quantity = %order.quantity
+    ))]
     pub async fn place_market_order(&self, order: Order) -> Result<OrderResult> {
         // Validate order type
         if !matches!(order.order_type, OrderType::Market) {
@@ -194,7 +226,7 @@ impl CoinbaseRestClient {
             });
         }
 
-        self.rate_limiter.wait_if_needed().await;
+        self.rate_limiter.wait_if_needed().await?;
 
         // Convert pair format: "SOL/USDC" -> "SOL-USDC"
         let product_id = order.pair.replace("/", "-");
@@ -236,7 +268,10 @@ impl CoinbaseRestClient {
         // Generate a unique client_order_id (Coinbase seems to require it)
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .map_err(|_| ArbitrageError::NetworkError {
+                message: "System time is before UNIX epoch".into(),
+                retry_after: None,
+            })?
             .as_millis();
         let client_order_id = format!("arb-bot-{}", timestamp);
 

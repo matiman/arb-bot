@@ -61,9 +61,10 @@ impl MessageParser for BinanceParser {
         };
 
         let value: serde_json::Value = serde_json::from_str(message).map_err(|e| {
-            eprintln!(
-                "❌ BinanceParser: JSON parse error: {} (message: {})",
-                e, preview
+            crate::logger::error!(
+                error = %e,
+                message_preview = %preview,
+                "JSON parse error"
             );
             ArbitrageError::ParseError {
                 message: format!("Invalid JSON: {}", e),

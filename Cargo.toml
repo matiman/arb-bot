@@ -32,7 +32,7 @@ jsonwebtoken = "9.3"
 p256 = "0.13"
 # For parsing PEM-encoded EC private keys
 pkcs8 = "0.10"
-sec1 = "0.7"  # For parsing SEC1 format EC keys
+sec1 = "0.7"   # For parsing SEC1 format EC keys
 ecdsa = "0.16"
 # For loading .env files
 dotenvy = "0.15"
@@ -40,6 +40,16 @@ dotenvy = "0.15"
 rand = "0.8"
 # For base64 encoding in JWT
 base64 = "0.22"
+# Colored error reporting with backtraces (for entry points)
+color-eyre = "0.6"
+# Structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+    "json",
+    "fmt",
+] }
+tracing-appender = "0.2"
 
 [[example]]
 name = "binance_websocket_test"
@@ -50,4 +60,5 @@ name = "coinbase_websocket_test"
 path = "examples/coinbase_websocket_test.rs"
 
 [dev-dependencies]
-base64 = "0.22"  # For JWT decoding in tests
+base64 = "0.22"   # For JWT decoding in tests
+tempfile = "3.10" # For temporary directories in tests

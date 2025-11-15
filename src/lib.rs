@@ -7,6 +7,7 @@ pub mod config;
 pub mod constants;
 pub mod error;
 pub mod exchanges;
+pub mod logger;
 pub mod state;
 pub mod websocket;
 
