@@ -2059,6 +2059,724 @@ Implement Coinbase Advanced Trade API integration using the Exchange trait.
 
 ---
 
+## 🎯 Task 7.5: Coinbase REST API Integration
+
+### Objective
+
+Implement Coinbase Advanced Trade REST API client for order execution and balance queries. This enables the arbitrage bot to execute trades on Coinbase.
+
+### What to Build
+
+1. JWT authentication with ES256 (ECDSA) algorithm
+2. REST API client for Coinbase Advanced Trade API
+3. Market order placement (`POST /api/v3/brokerage/orders`)
+4. Account balance queries (`GET /api/v3/brokerage/accounts`)
+5. Error handling for API responses
+6. Rate limiting (10 requests per second)
+7. Integration with existing `Exchange` trait methods
+
+### Implementation Specification
+
+````xml
+<task id="7.5" phase="1">
+  <name>Coinbase REST API Integration</name>
+  <priority>high</priority>
+
+  <test_first>
+    <file>tests/coinbase_rest.rs</file>
+    <description>
+      Write tests FIRST (will fail initially):
+      - JWT token generation with ES256
+      - JWT token contains correct claims (iss, sub, exp, nbf)
+      - REST API client initialization
+      - Market order placement (mock HTTP responses)
+      - Balance query (mock HTTP responses)
+      - Error handling for API errors (400, 401, 403, 429, 500)
+      - Rate limit handling (429 responses)
+      - Product ID format conversion (SOL/USDC ↔ SOL-USDC)
+      - OrderResult conversion from Coinbase response
+      - Balance conversion from Coinbase response
+      - Sandbox integration tests (with real API, marked #[ignore])
+      - Production integration tests (with real API, marked #[ignore])
+
+      These tests define expected behavior before implementation exists.
+    </description>
+  </test_first>
+
+  <implementation>
+    <dependencies>
+      Add to Cargo.toml:
+      ```toml
+      # JWT signing (ES256 algorithm)
+      jsonwebtoken = "9.3"
+      p256 = "0.13"  # ECDSA P-256 curve support
+      # OR use ring or other crypto library that supports ES256
+
+      # For parsing EC private keys
+      pkcs8 = "0.10"  # For parsing PEM-encoded EC private keys
+      # OR use openssl crate if preferred
+      ```
+
+      Note: Coinbase uses ES256 (ECDSA P-256) for JWT signing, not HS256 (HMAC).
+      The API secret is an EC private key in PEM format.
+    </dependencies>
+
+    <file>src/exchanges/coinbase/auth.rs</file>
+    <requirements>
+      **JWT Authentication:**
+      ```rust
+      use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+      use serde::{Deserialize, Serialize};
+      use chrono::{Duration, Utc};
+
+      /// JWT claims for Coinbase Advanced Trade API
+      #[derive(Debug, Serialize, Deserialize)]
+      struct CoinbaseClaims {
+          sub: String,  // API key name (e.g., "organizations/org-id/apiKeys/key-id")
+          iss: String,  // "coinbase-cloud"
+          nbf: i64,     // Not before timestamp
+          exp: i64,     // Expiration timestamp
+      }
+
+      pub struct CoinbaseAuth {
+          api_key: String,      // Full API key path
+          private_key: String,  // EC private key in PEM format
+      }
+
+      impl CoinbaseAuth {
+          pub fn new(api_key: String, api_secret: String) -> Result<Self> {
+              // Validate that api_secret is a valid PEM-encoded EC private key
+              // Parse and validate the key format
+              Ok(Self {
+                  api_key,
+                  private_key: api_secret,
+              })
+          }
+
+          /// Generate JWT token for API authentication
+          ///
+          /// Token expires in 2 minutes (Coinbase requirement)
+          /// Algorithm: ES256 (ECDSA P-256)
+          pub fn generate_jwt(&self) -> Result<String> {
+              let now = Utc::now();
+              let claims = CoinbaseClaims {
+                  sub: self.api_key.clone(),
+                  iss: "coinbase-cloud".to_string(),
+                  nbf: now.timestamp(),
+                  exp: (now + Duration::minutes(2)).timestamp(),
+              };
+
+              let header = Header::new(Algorithm::ES256);
+
+              // Parse PEM-encoded EC private key
+              let encoding_key = EncodingKey::from_ec_pem(self.private_key.as_bytes())
+                  .map_err(|e| ArbitrageError::AuthenticationError {
+                      exchange: "coinbase".to_string(),
+                      reason: format!("Failed to parse EC private key: {}", e),
+                  })?;
+
+              encode(&header, &claims, &encoding_key)
+                  .map_err(|e| ArbitrageError::AuthenticationError {
+                      exchange: "coinbase".to_string(),
+                      reason: format!("Failed to generate JWT: {}", e),
+                  })
+          }
+
+          /// Generate JWT with custom expiration
+          pub fn generate_jwt_with_exp(&self, expires_in: Duration) -> Result<String> {
+              // Similar to generate_jwt but with custom expiration
+          }
+      }
+
+      Add unit tests:
+      - JWT token generation
+      - JWT token expiration handling
+      - Invalid private key handling
+      - Token claims verification
+    </requirements>
+
+    <file>src/exchanges/coinbase/types.rs</file>
+    <requirements>
+      **Coinbase API Response Types:**
+      ```rust
+      use serde::{Deserialize, Serialize};
+      use rust_decimal::Decimal;
+      use chrono::{DateTime, Utc};
+
+      /// Coinbase order request
+      #[derive(Debug, Serialize)]
+      pub struct CoinbaseOrderRequest {
+          pub product_id: String,  // e.g., "SOL-USDC"
+          pub side: String,         // "BUY" or "SELL"
+          pub order_configuration: OrderConfiguration,
+      }
+
+      #[derive(Debug, Serialize)]
+      pub struct OrderConfiguration {
+          #[serde(rename = "market_market_ioc")]
+          pub market_ioc: MarketIocConfig,
+      }
+
+      #[derive(Debug, Serialize)]
+      pub struct MarketIocConfig {
+          pub quote_size: Option<String>,  // Quote currency amount (e.g., "1000" USDC)
+          pub base_size: Option<String>,   // Base currency amount (e.g., "10" SOL)
+      }
+
+      /// Coinbase order response
+      #[derive(Debug, Deserialize)]
+      pub struct CoinbaseOrderResponse {
+          pub order_id: String,
+          pub product_id: String,
+          pub side: String,
+          pub client_order_id: Option<String>,
+          pub status: String,  // "FILLED", "PENDING", "CANCELLED", etc.
+          pub average_filled_price: Option<String>,
+          pub filled_size: Option<String>,
+          pub fees: Option<String>,
+          pub number_of_fills: Option<u32>,
+          pub created_time: Option<String>,
+      }
+
+      /// Coinbase account response
+      #[derive(Debug, Deserialize)]
+      pub struct CoinbaseAccountsResponse {
+          pub accounts: Vec<CoinbaseAccount>,
+      }
+
+      #[derive(Debug, Deserialize)]
+      pub struct CoinbaseAccount {
+          pub uuid: String,
+          pub name: String,
+          pub currency: String,
+          pub available_balance: CoinbaseBalance,
+          pub hold: CoinbaseBalance,
+      }
+
+      #[derive(Debug, Deserialize)]
+      pub struct CoinbaseBalance {
+          pub value: String,
+          pub currency: String,
+      }
+
+      /// Convert CoinbaseOrderResponse to OrderResult
+      impl TryFrom<CoinbaseOrderResponse> for OrderResult {
+          type Error = ArbitrageError;
+
+          fn try_from(resp: CoinbaseOrderResponse) -> Result<Self> {
+              let status = match resp.status.as_str() {
+                  "FILLED" => OrderStatus::Filled,
+                  "PENDING" => OrderStatus::Pending,
+                  "PARTIALLY_FILLED" => OrderStatus::PartiallyFilled,
+                  "CANCELLED" => OrderStatus::Cancelled,
+                  "FAILED" => OrderStatus::Failed,
+                  _ => OrderStatus::Failed,
+              };
+
+              let filled_quantity = resp.filled_size
+                  .as_ref()
+                  .and_then(|s| Decimal::from_str_exact(s).ok())
+                  .unwrap_or(Decimal::ZERO);
+
+              let average_price = resp.average_filled_price
+                  .as_ref()
+                  .and_then(|s| Decimal::from_str_exact(s).ok());
+
+              let fee = resp.fees
+                  .as_ref()
+                  .and_then(|s| Decimal::from_str_exact(s).ok())
+                  .unwrap_or(Decimal::ZERO);
+
+              // Extract fee currency from product_id (e.g., "SOL-USDC" -> "USDC")
+              let fee_asset = resp.product_id
+                  .split('-')
+                  .nth(1)
+                  .unwrap_or("USDC")
+                  .to_string();
+
+              let timestamp = resp.created_time
+                  .as_ref()
+                  .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                  .map(|dt| dt.with_timezone(&Utc))
+                  .unwrap_or_else(Utc::now);
+
+              Ok(OrderResult {
+                  order_id: resp.order_id,
+                  status,
+                  filled_quantity,
+                  average_price,
+                  fee,
+                  fee_asset,
+                  timestamp,
+              })
+          }
+      }
+
+      /// Convert CoinbaseAccount to Decimal balance
+      impl CoinbaseAccount {
+          pub fn available_balance_decimal(&self) -> Result<Decimal> {
+              Decimal::from_str_exact(&self.available_balance.value)
+                  .map_err(|e| ArbitrageError::ParseError {
+                      message: format!("Failed to parse balance: {}", e),
+                      input: Some(self.available_balance.value.clone()),
+                  })
+          }
+      }
+
+      Add unit tests:
+      - OrderResult conversion from CoinbaseOrderResponse
+      - Balance parsing from CoinbaseAccount
+      - Error handling for invalid responses
+    </requirements>
+
+    <file>src/exchanges/coinbase/rest.rs</file>
+    <requirements>
+      **REST API Client:**
+      ```rust
+      use reqwest::Client;
+      use crate::error::{ArbitrageError, Result};
+      use crate::exchanges::{Order, OrderResult, OrderSide};
+      use super::auth::CoinbaseAuth;
+      use super::types::*;
+      use rust_decimal::Decimal;
+      use std::time::Duration;
+      use tokio::time::sleep;
+
+      pub struct CoinbaseRestClient {
+          client: Client,
+          auth: CoinbaseAuth,
+          base_url: String,
+          rate_limiter: RateLimiter,  // Simple token bucket or delay-based
+      }
+
+      impl CoinbaseRestClient {
+          pub fn new(api_key: String, api_secret: String, sandbox: bool) -> Result<Self> {
+              let auth = CoinbaseAuth::new(api_key, api_secret)?;
+
+              let base_url = if sandbox {
+                  "https://api-public.sandbox.exchange.coinbase.com".to_string()
+              } else {
+                  "https://api.coinbase.com".to_string()
+              };
+
+              let client = Client::builder()
+                  .timeout(Duration::from_secs(30))
+                  .build()
+                  .map_err(|e| ArbitrageError::NetworkError {
+                      message: format!("Failed to create HTTP client: {}", e),
+                      retry_after: None,
+                  })?;
+
+              // Rate limiter: 10 requests per second
+              let rate_limiter = RateLimiter::new(10, Duration::from_secs(1));
+
+              Ok(Self {
+                  client,
+                  auth,
+                  base_url,
+                  rate_limiter,
+              })
+          }
+
+          /// Place a market order
+          ///
+          /// # Arguments
+          /// * `order` - Order to place (must be Market order type)
+          ///
+          /// # Returns
+          /// OrderResult with execution details
+          pub async fn place_market_order(&self, order: Order) -> Result<OrderResult> {
+              // Rate limit check
+              self.rate_limiter.wait_if_needed().await;
+
+              // Validate order type
+              if !matches!(order.order_type, OrderType::Market) {
+                  return Err(ArbitrageError::ExchangeError {
+                      exchange: "coinbase".to_string(),
+                      message: "Only market orders are supported".to_string(),
+                      code: None,
+                  });
+              }
+
+              // Convert pair format (SOL/USDC -> SOL-USDC)
+              let product_id = order.pair.replace("/", "-");
+
+              // Convert OrderSide to Coinbase format
+              let side = match order.side {
+                  OrderSide::Buy => "BUY",
+                  OrderSide::Sell => "SELL",
+              };
+
+              // Build order request
+              // For market orders, use base_size (quantity in base currency)
+              let order_config = OrderConfiguration {
+                  market_ioc: MarketIocConfig {
+                      quote_size: None,
+                      base_size: Some(order.quantity.to_string()),
+                  },
+              };
+
+              let order_request = CoinbaseOrderRequest {
+                  product_id,
+                  side: side.to_string(),
+                  order_configuration: order_config,
+              };
+
+              // Generate JWT token
+              let jwt = self.auth.generate_jwt()?;
+
+              // Make API request
+              let url = format!("{}/api/v3/brokerage/orders", self.base_url);
+
+              let response = self.client
+                  .post(&url)
+                  .header("Authorization", format!("Bearer {}", jwt))
+                  .header("Content-Type", "application/json")
+                  .json(&order_request)
+                  .send()
+                  .await
+                  .map_err(|e| ArbitrageError::NetworkError {
+                      message: format!("Failed to send order request: {}", e),
+                      retry_after: None,
+                  })?;
+
+              // Handle rate limiting
+              if response.status() == 429 {
+                  let retry_after = response
+                      .headers()
+                      .get("Retry-After")
+                      .and_then(|h| h.to_str().ok())
+                      .and_then(|s| s.parse::<u64>().ok())
+                      .unwrap_or(1);
+
+                  return Err(ArbitrageError::RateLimitExceeded {
+                      exchange: "coinbase".to_string(),
+                      retry_after,
+                  });
+              }
+
+              // Handle authentication errors
+              if response.status() == 401 || response.status() == 403 {
+                  return Err(ArbitrageError::AuthenticationError {
+                      exchange: "coinbase".to_string(),
+                      reason: format!("Authentication failed: {}", response.status()),
+                  });
+              }
+
+              // Parse response
+              let status = response.status();
+              let response_text = response.text().await.map_err(|e| ArbitrageError::NetworkError {
+                  message: format!("Failed to read response: {}", e),
+                  retry_after: None,
+              })?;
+
+              if !status.is_success() {
+                  return Err(ArbitrageError::ExchangeError {
+                      exchange: "coinbase".to_string(),
+                      message: format!("Order placement failed: {} - {}", status, response_text),
+                      code: Some(status.as_u16() as i32),
+                  });
+              }
+
+              // Parse order response
+              let order_response: CoinbaseOrderResponse = serde_json::from_str(&response_text)
+                  .map_err(|e| ArbitrageError::ParseError {
+                      message: format!("Failed to parse order response: {}", e),
+                      input: Some(response_text),
+                  })?;
+
+              // Convert to OrderResult
+              OrderResult::try_from(order_response)
+          }
+
+          /// Get account balance for an asset
+          ///
+          /// # Arguments
+          /// * `asset` - Asset symbol (e.g., "SOL", "USDC")
+          ///
+          /// # Returns
+          /// Available balance as Decimal
+          pub async fn get_balance(&self, asset: &str) -> Result<Decimal> {
+              // Rate limit check
+              self.rate_limiter.wait_if_needed().await;
+
+              // Generate JWT token
+              let jwt = self.auth.generate_jwt()?;
+
+              // Make API request
+              let url = format!("{}/api/v3/brokerage/accounts", self.base_url);
+
+              let response = self.client
+                  .get(&url)
+                  .header("Authorization", format!("Bearer {}", jwt))
+                  .header("Content-Type", "application/json")
+                  .send()
+                  .await
+                  .map_err(|e| ArbitrageError::NetworkError {
+                      message: format!("Failed to get balance: {}", e),
+                      retry_after: None,
+                  })?;
+
+              // Handle rate limiting
+              if response.status() == 429 {
+                  let retry_after = response
+                      .headers()
+                      .get("Retry-After")
+                      .and_then(|h| h.to_str().ok())
+                      .and_then(|s| s.parse::<u64>().ok())
+                      .unwrap_or(1);
+
+                  return Err(ArbitrageError::RateLimitExceeded {
+                      exchange: "coinbase".to_string(),
+                      retry_after,
+                  });
+              }
+
+              // Handle authentication errors
+              if response.status() == 401 || response.status() == 403 {
+                  return Err(ArbitrageError::AuthenticationError {
+                      exchange: "coinbase".to_string(),
+                      reason: format!("Authentication failed: {}", response.status()),
+                  });
+              }
+
+              // Parse response
+              let status = response.status();
+              let response_text = response.text().await.map_err(|e| ArbitrageError::NetworkError {
+                  message: format!("Failed to read response: {}", e),
+                  retry_after: None,
+              })?;
+
+              if !status.is_success() {
+                  return Err(ArbitrageError::ExchangeError {
+                      exchange: "coinbase".to_string(),
+                      message: format!("Balance query failed: {} - {}", status, response_text),
+                      code: Some(status.as_u16() as i32),
+                  });
+              }
+
+              // Parse accounts response
+              let accounts_response: CoinbaseAccountsResponse = serde_json::from_str(&response_text)
+                  .map_err(|e| ArbitrageError::ParseError {
+                      message: format!("Failed to parse accounts response: {}", e),
+                      input: Some(response_text),
+                  })?;
+
+              // Find account for the requested asset
+              let account = accounts_response.accounts
+                  .iter()
+                  .find(|acc| acc.currency == asset)
+                  .ok_or_else(|| ArbitrageError::ExchangeError {
+                      exchange: "coinbase".to_string(),
+                      message: format!("Account not found for asset: {}", asset),
+                      code: None,
+                  })?;
+
+              // Return available balance
+              account.available_balance_decimal()
+          }
+      }
+
+      /// Simple rate limiter using token bucket algorithm
+      struct RateLimiter {
+          max_requests: u32,
+          window: Duration,
+          last_request: Arc<Mutex<Option<Instant>>>,
+          request_count: Arc<Mutex<u32>>,
+      }
+
+      impl RateLimiter {
+          fn new(max_requests: u32, window: Duration) -> Self {
+              Self {
+                  max_requests,
+                  window,
+                  last_request: Arc::new(Mutex::new(None)),
+                  request_count: Arc::new(Mutex::new(0)),
+              }
+          }
+
+          async fn wait_if_needed(&self) {
+              // Simple implementation: track requests in time window
+              // Reset counter if window expired
+              // Wait if at limit
+              // TODO: Implement proper token bucket algorithm
+          }
+      }
+
+      Add unit tests:
+      - REST client initialization
+      - Order placement with mock responses
+      - Balance query with mock responses
+      - Rate limit handling
+      - Error handling for various HTTP status codes
+    </requirements>
+
+    <file>src/exchanges/coinbase/exchange.rs</file>
+    <requirements>
+      **Update CoinbaseExchange to use REST client:**
+      ```rust
+      // Add rest_client field to CoinbaseExchange struct
+      pub struct CoinbaseExchange {
+          // ... existing fields ...
+          rest_client: Option<CoinbaseRestClient>,
+      }
+
+      impl CoinbaseExchange {
+          pub fn new(config: CoinbaseConfig) -> Result<Self> {
+              // Initialize REST client if API credentials are provided
+              let rest_client = if !config.api_key.is_empty() && !config.api_secret.is_empty() {
+                  Some(CoinbaseRestClient::new(
+                      config.api_key.clone(),
+                      config.api_secret.clone(),
+                      config.sandbox,
+                  )?)
+              } else {
+                  None
+              };
+
+              Ok(Self {
+                  // ... existing fields ...
+                  rest_client,
+              })
+          }
+      }
+
+      #[async_trait]
+      impl Exchange for CoinbaseExchange {
+          async fn place_order(&mut self, order: Order) -> Result<OrderResult> {
+              let rest_client = self.rest_client.as_ref()
+                  .ok_or_else(|| ArbitrageError::ExchangeError {
+                      exchange: "coinbase".to_string(),
+                      message: "REST API client not initialized. API credentials required.".to_string(),
+                      code: None,
+                  })?;
+
+              rest_client.place_market_order(order).await
+          }
+
+          async fn get_balance(&self, asset: &str) -> Result<Decimal> {
+              let rest_client = self.rest_client.as_ref()
+                  .ok_or_else(|| ArbitrageError::ExchangeError {
+                      exchange: "coinbase".to_string(),
+                      message: "REST API client not initialized. API credentials required.".to_string(),
+                      code: None,
+                  })?;
+
+              rest_client.get_balance(asset).await
+          }
+      }
+      ```
+    </requirements>
+
+    <coinbase_rest_api_details>
+      **Coinbase Advanced Trade API Endpoints:**
+
+      1. **Place Order**: `POST /api/v3/brokerage/orders`
+         - Requires: JWT Bearer token in Authorization header
+         - Body: CoinbaseOrderRequest JSON
+         - Response: CoinbaseOrderResponse JSON
+         - Rate limit: 10 req/sec
+
+      2. **Get Accounts**: `GET /api/v3/brokerage/accounts`
+         - Requires: JWT Bearer token in Authorization header
+         - Response: CoinbaseAccountsResponse JSON
+         - Rate limit: 10 req/sec
+
+      **Authentication:**
+      - Algorithm: ES256 (ECDSA P-256)
+      - Token expiration: 2 minutes
+      - Header format: `Authorization: Bearer <JWT_TOKEN>`
+      - JWT claims:
+        - `sub`: API key path (e.g., "organizations/org-id/apiKeys/key-id")
+        - `iss`: "coinbase-cloud"
+        - `nbf`: Not before timestamp (current time)
+        - `exp`: Expiration timestamp (current time + 2 minutes)
+
+      **Product ID Format:**
+      - Coinbase uses hyphen format: "SOL-USDC"
+      - Internal format: "SOL/USDC"
+      - Conversion: `pair.replace("/", "-")` and `product_id.replace("-", "/")`
+
+      **Sandbox vs Production:**
+      - Sandbox: `https://api-public.sandbox.exchange.coinbase.com`
+      - Production: `https://api.coinbase.com`
+      - Use `config.sandbox` flag to determine base URL
+    </coinbase_rest_api_details>
+  </implementation>
+
+  <validation>
+    - JWT token generation works correctly
+    - JWT token expires after 2 minutes
+    - Order placement works in sandbox
+    - Balance queries work in sandbox
+    - Rate limiting prevents exceeding 10 req/sec
+    - Error handling for all HTTP status codes
+    - Product ID format conversion correct
+    - OrderResult conversion accurate
+    - All unit tests pass
+    - All integration tests pass (sandbox)
+    - No clippy warnings
+    - Documentation complete
+  </validation>
+
+  <completion_criteria>
+    ❌ Tests written and failing initially (TDD)
+    💻 JWT authentication implemented
+    💻 REST API client implemented
+    💻 Order placement working (sandbox)
+    💻 Balance queries working (sandbox)
+    ✅ All tests passing
+    ✅ Unit tests for auth, REST client, types
+    ✅ Integration tests for sandbox API
+    ✅ Rate limiting working
+    ✅ Error handling comprehensive
+    ✅ Documentation complete
+    ✅ Human verification with sandbox
+  </completion_criteria>
+</task>
+````
+
+### Files to Create/Update
+
+1. **src/exchanges/coinbase/auth.rs** - JWT authentication with ES256 (NEW)
+2. **src/exchanges/coinbase/types.rs** - Update with REST API types (UPDATE)
+3. **src/exchanges/coinbase/rest.rs** - REST API client implementation (UPDATE)
+4. **src/exchanges/coinbase/exchange.rs** - Integrate REST client (UPDATE)
+5. **src/exchanges/coinbase/mod.rs** - Export auth module (UPDATE)
+6. **tests/coinbase_rest.rs** - REST API integration tests (NEW)
+7. **Cargo.toml** - Add JWT and crypto dependencies (UPDATE)
+8. **examples/coinbase_rest_test.rs** - Example for testing REST API (NEW)
+
+### Dependencies to Add
+
+```toml
+# JWT signing (ES256 algorithm)
+jsonwebtoken = "9.3"
+p256 = "0.13"  # ECDSA P-256 curve support
+# OR use ring = "0.17" with ES256 support
+
+# For parsing EC private keys (PEM format)
+pkcs8 = "0.10"  # For parsing PEM-encoded EC private keys
+```
+
+### Testing Strategy
+
+1. **Unit Tests**: Mock HTTP responses using `mockito` or similar
+2. **Integration Tests**: Real sandbox API calls (marked `#[ignore]`)
+3. **Manual Testing**: Example program to test order placement and balance queries
+
+### Security Considerations
+
+- API keys stored in config (not hardcoded)
+- JWT tokens expire after 2 minutes
+- Private keys never logged
+- Rate limiting prevents API abuse
+- Sandbox mode for testing (no real funds)
+
+### Note: Revisit HIGH PRIORITY Core Principles before implementing this Task and make sure you complete them. Especially point 7 & 8.
+
+---
+
 ## 🎯 Task 8: Logging & Observability
 
 ### Note: Revisit HIGH PRIORITY Core Principles before imlementing next Task and make sure you complete them. Especially point 7 & 8.

@@ -50,7 +50,7 @@ impl MessageParser for CoinbaseParser {
         if value["type"].as_str() == Some("error") {
             let error_msg = value["message"].as_str().unwrap_or("Unknown error");
             return Err(ArbitrageError::ExchangeError {
-                exchange: "coinbase".to_string(),
+                exchange: crate::constants::exchange::COINBASE.to_string(),
                 message: format!("Coinbase WebSocket error: {}", error_msg),
                 code: None,
             });

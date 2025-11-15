@@ -30,6 +30,7 @@ fn create_sandbox_config() -> CoinbaseConfig {
 
 /// Helper to create a production Coinbase config
 /// Coinbase WebSocket works without API keys for public ticker streams
+/// TODO! Remove once Sandbox is working
 fn create_production_config() -> CoinbaseConfig {
     CoinbaseConfig {
         api_key: String::new(),
@@ -148,7 +149,7 @@ async fn test_coinbase_parser_missing_fields() {
 async fn test_coinbase_product_id_conversion() {
     // Test pair format conversion
     // CoinbaseExchange::pair_to_product_id converts SOL/USDC to SOL-USDC
-    assert_eq!(CoinbaseExchange::pair_to_product_id("SOL/USDC"), "SOL-USDC");
+    assert_eq!(CoinbaseParser::pair_to_product_id("SOL/USDC"), "SOL-USDC");
 
     // CoinbaseParser::product_id_to_pair converts SOL-USDC to SOL/USDC
     assert_eq!(CoinbaseParser::product_id_to_pair("SOL-USDC"), "SOL/USDC");
@@ -169,39 +170,4 @@ async fn test_coinbase_error_handling() {
     // Error should indicate no price data
     let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("No price data") || error_msg.contains("INVALID"));
-}
-
-#[tokio::test]
-async fn test_coinbase_rest_sign_request() {
-    // Test JWT token generation
-    // REST API deferred - test will be implemented in arbitrage logic phase
-    // This test is intentionally empty until REST API is implemented
-}
-
-#[tokio::test]
-#[ignore] // REST API deferred - requires sandbox API keys
-async fn test_coinbase_rest_get_balance() {
-    // Test balance query (sandbox)
-    // REST API deferred - test will be implemented in arbitrage logic phase
-    let _config = create_sandbox_config();
-    // This will fail until CoinbaseRestClient is implemented
-    // let client = CoinbaseRestClient::new(config.api_key, config.api_secret, config.sandbox);
-    // let balance = client.get_balance("USDC").await.unwrap();
-    // assert!(balance >= Decimal::ZERO);
-}
-
-#[tokio::test]
-#[ignore] // REST API deferred - requires sandbox API keys
-async fn test_coinbase_rest_place_order() {
-    // Test market order placement (sandbox)
-    // REST API deferred - test will be implemented in arbitrage logic phase
-    let _config = create_sandbox_config();
-    // This will fail until CoinbaseRestClient and CoinbaseExchange are implemented
-    // let mut exchange = CoinbaseExchange::new(config).unwrap();
-    //
-    // let order = Order::market_buy("SOL/USDC", Decimal::from(10));
-    // let result = exchange.place_order(order).await.unwrap();
-    //
-    // assert!(result.is_complete() || !result.is_complete()); // Either is valid
-    // assert!(!result.order_id.is_empty());
 }

@@ -3,6 +3,7 @@
 //! Handles connection lifecycle, message parsing, broadcasting, and reconnection logic.
 
 use crate::error::{ArbitrageError, Result};
+use crate::logger::{error, info, warn};
 use crate::websocket::{MessageParser, ReconnectionStrategy};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
@@ -103,6 +104,7 @@ impl<P: MessageParser> WebSocketManager<P> {
     /// 2. On success: runs message loop (receive, parse, broadcast)
     /// 3. On failure: uses `ReconnectionStrategy` to retry with exponential backoff
     /// 4. Returns when connection closes normally or retries exhausted
+    #[tracing::instrument(name = "websocket_manager_run", skip(self), fields(url = %self.url))]
     pub async fn run(&mut self) -> Result<()> {
         loop {
             match self.connect_and_run().await {
@@ -125,21 +127,19 @@ impl<P: MessageParser> WebSocketManager<P> {
     }
 
     /// Connect and run the message loop
+    #[tracing::instrument(name = "websocket_connect_and_run", skip(self), fields(url = %self.url))]
     async fn connect_and_run(&mut self) -> Result<()> {
-        println!("🔌 WebSocketManager: Attempting to connect to {}", self.url);
+        info!(url = %self.url, "Attempting to connect to WebSocket");
         // Connect to WebSocket
         let (ws_stream, response) = connect_async(&self.url).await.map_err(|e| {
-            eprintln!("❌ WebSocketManager: Connection failed: {}", e);
+            error!(url = %self.url, error = %e, "Connection failed");
             ArbitrageError::NetworkError {
                 message: format!("Failed to connect to {}: {}", self.url, e),
                 retry_after: None,
             }
         })?;
 
-        println!(
-            "✅ WebSocketManager: Connected! Status: {}",
-            response.status()
-        );
+        info!(status = %response.status(), "Connected to WebSocket");
 
         // Split into read and write halves since we need to send and receive messages concurrently
         let (mut write, mut read) = ws_stream.split();
@@ -168,7 +168,7 @@ impl<P: MessageParser> WebSocketManager<P> {
                                 Err(e) => {
                                     // Log parse error but continue running
                                     // Not all messages may be price updates
-                                    eprintln!("Failed to parse message: {}", e);
+                                    warn!(error = %e, "Failed to parse message");
                                 }
                             }
                         }
@@ -221,7 +221,6 @@ mod tests {
     use crate::exchanges::Price;
     use chrono::Utc;
     use rust_decimal::Decimal;
-    use tokio::time::Duration;
 
     #[derive(Clone)]
     struct TestParser;

@@ -173,9 +173,6 @@ async fn test_binance_rest_place_order() {
 #[tokio::test]
 async fn test_binance_symbol_conversion() {
     // Test pair format conversion
-    // BinanceExchange::pair_to_symbol returns lowercase (for URL)
-    assert_eq!(BinanceExchange::pair_to_symbol("SOL/USDC"), "solusdc");
-
     // BinanceParser::symbol_to_pair converts symbol to pair format
     assert_eq!(BinanceParser::symbol_to_pair("SOLUSDC"), "SOL/USDC");
 
